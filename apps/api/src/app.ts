@@ -1,0 +1,41 @@
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import { config } from './config/env';
+import { globalErrorHandler } from './middleware/error.middleware';
+import authRouter from './modules/auth/auth.index';
+import usersRouter from './modules/users/users.index';
+import dealsRouter from './modules/deals/deals.index';
+import disputesRouter from './modules/disputes/disputes.index';
+import dashboardRouter from './modules/dashboard/dashboard.index';
+import notificationsRouter from './modules/notifications/notifications.index';
+
+const app = express();
+
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
+});
+
+app.use('/api/auth', authRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/deals', dealsRouter);
+app.use('/api/disputes', disputesRouter);
+app.use('/api/dashboard', dashboardRouter);
+app.use('/api/notifications', notificationsRouter);
+
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ success: false, error: 'Route not found' });
+});
+
+app.use(globalErrorHandler);
+
+export default app;

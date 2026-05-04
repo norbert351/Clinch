@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1776805677410,
+      "tag": "0000_mysterious_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776897371000,
+      "tag": "0001_organic_captain_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776964947583,
+      "tag": "0002_abnormal_lady_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776970000000,
+      "tag": "0003_ancient_clinch_upgrade",
+      "breakpoints": true
+    }
+  ]
+}

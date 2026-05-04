@@ -1,0 +1,241 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Clinch Design System */
+:root {
+  /* Background layers (depth) */
+  --clinch-bg-page: #0F1117;
+  --clinch-bg-card: #161B27;
+  --clinch-bg-elevated: #1C2333;
+  --clinch-bg-input: #0F1117;
+  
+  /* Borders */
+  --clinch-border-default: #2A3347;
+  --clinch-border-hover: #374159;
+  --clinch-border-active: #4F6EF7;
+  
+  /* Brand accent (blue) */
+  --clinch-accent: #4F6EF7;
+  --clinch-accent-hover: #6B85F8;
+  --clinch-accent-muted: #1A2456;
+  
+  /* Text */
+  --clinch-text-primary: #F1F5F9;
+  --clinch-text-secondary: #94A3B8;
+  --clinch-text-tertiary: #475569;
+  --clinch-text-inverse: #FFFFFF;
+  
+  /* Status colors */
+  --clinch-success: #22C55E;
+  --clinch-success-muted: #0F2419;
+  --clinch-warning: #F59E0B;
+  --clinch-warning-muted: #221A07;
+  --clinch-danger: #EF4444;
+  --clinch-danger-muted: #200D0D;
+  --clinch-neutral: #64748B;
+  --clinch-neutral-muted: #171B24;
+  
+  /* Deal status badge colors */
+  --clinch-status-active-text: #4F6EF7;
+  --clinch-status-active-bg: #1A2456;
+  --clinch-status-active-border: #2A3A7A;
+  
+  --clinch-status-disputed-text: #F59E0B;
+  --clinch-status-disputed-bg: #221A07;
+  --clinch-status-disputed-border: #4A3510;
+  
+  --clinch-status-resolved-text: #22C55E;
+  --clinch-status-resolved-bg: #0F2419;
+  --clinch-status-resolved-border: #1A4028;
+  
+  --clinch-status-cancelled-text: #64748B;
+  --clinch-status-cancelled-bg: #171B24;
+  --clinch-status-cancelled-border: #2A3347;
+  
+  --clinch-status-pending-text: #94A3B8;
+  --clinch-status-pending-bg: #1C2333;
+  --clinch-status-pending-border: #2A3347;
+  
+  /* Map to standard tokens */
+  --background: var(--clinch-bg-page);
+  --foreground: var(--clinch-text-primary);
+  --card: var(--clinch-bg-card);
+  --card-foreground: var(--clinch-text-primary);
+  --popover: var(--clinch-bg-elevated);
+  --popover-foreground: var(--clinch-text-primary);
+  --primary: var(--clinch-accent);
+  --primary-foreground: var(--clinch-text-inverse);
+  --secondary: var(--clinch-bg-elevated);
+  --secondary-foreground: var(--clinch-text-secondary);
+  --muted: var(--clinch-bg-elevated);
+  --muted-foreground: var(--clinch-text-tertiary);
+  --accent: var(--clinch-accent);
+  --accent-foreground: var(--clinch-text-inverse);
+  --destructive: var(--clinch-danger);
+  --destructive-foreground: var(--clinch-text-inverse);
+  --border: var(--clinch-border-default);
+  --input: var(--clinch-bg-input);
+  --ring: var(--clinch-accent);
+  --radius: 0.625rem;
+  
+  /* Sidebar */
+  --sidebar: var(--clinch-bg-page);
+  --sidebar-foreground: var(--clinch-text-primary);
+  --sidebar-primary: var(--clinch-accent);
+  --sidebar-primary-foreground: var(--clinch-text-inverse);
+  --sidebar-accent: var(--clinch-accent-muted);
+  --sidebar-accent-foreground: var(--clinch-text-primary);
+  --sidebar-border: var(--clinch-border-default);
+  --sidebar-ring: var(--clinch-accent);
+}
+
+@theme inline {
+  --font-sans: 'Inter', 'Inter Fallback', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
+  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  
+  /* Clinch custom colors for Tailwind */
+  --color-clinch-bg-page: var(--clinch-bg-page);
+  --color-clinch-bg-card: var(--clinch-bg-card);
+  --color-clinch-bg-elevated: var(--clinch-bg-elevated);
+  --color-clinch-bg-input: var(--clinch-bg-input);
+  
+  --color-clinch-border-default: var(--clinch-border-default);
+  --color-clinch-border-hover: var(--clinch-border-hover);
+  --color-clinch-border-active: var(--clinch-border-active);
+  
+  --color-clinch-accent: var(--clinch-accent);
+  --color-clinch-accent-hover: var(--clinch-accent-hover);
+  --color-clinch-accent-muted: var(--clinch-accent-muted);
+  
+  --color-clinch-text-primary: var(--clinch-text-primary);
+  --color-clinch-text-secondary: var(--clinch-text-secondary);
+  --color-clinch-text-tertiary: var(--clinch-text-tertiary);
+  --color-clinch-text-inverse: var(--clinch-text-inverse);
+  
+  --color-clinch-success: var(--clinch-success);
+  --color-clinch-success-muted: var(--clinch-success-muted);
+  --color-clinch-warning: var(--clinch-warning);
+  --color-clinch-warning-muted: var(--clinch-warning-muted);
+  --color-clinch-danger: var(--clinch-danger);
+  --color-clinch-danger-muted: var(--clinch-danger-muted);
+  --color-clinch-neutral: var(--clinch-neutral);
+  --color-clinch-neutral-muted: var(--clinch-neutral-muted);
+  
+  --color-clinch-status-active-text: var(--clinch-status-active-text);
+  --color-clinch-status-active-bg: var(--clinch-status-active-bg);
+  --color-clinch-status-active-border: var(--clinch-status-active-border);
+  
+  --color-clinch-status-disputed-text: var(--clinch-status-disputed-text);
+  --color-clinch-status-disputed-bg: var(--clinch-status-disputed-bg);
+  --color-clinch-status-disputed-border: var(--clinch-status-disputed-border);
+  
+  --color-clinch-status-resolved-text: var(--clinch-status-resolved-text);
+  --color-clinch-status-resolved-bg: var(--clinch-status-resolved-bg);
+  --color-clinch-status-resolved-border: var(--clinch-status-resolved-border);
+  
+  --color-clinch-status-cancelled-text: var(--clinch-status-cancelled-text);
+  --color-clinch-status-cancelled-bg: var(--clinch-status-cancelled-bg);
+  --color-clinch-status-cancelled-border: var(--clinch-status-cancelled-border);
+  
+  --color-clinch-status-pending-text: var(--clinch-status-pending-text);
+  --color-clinch-status-pending-bg: var(--clinch-status-pending-bg);
+  --color-clinch-status-pending-border: var(--clinch-status-pending-border);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Clinch Typography Classes */
+@layer utilities {
+  .text-display {
+    @apply text-5xl font-bold tracking-tight;
+    letter-spacing: -0.03em;
+  }
+  
+  .text-h1 {
+    @apply text-4xl font-semibold;
+    letter-spacing: -0.02em;
+  }
+  
+  .text-h2 {
+    @apply text-3xl font-semibold;
+    letter-spacing: -0.02em;
+  }
+  
+  .text-h3 {
+    @apply text-xl font-semibold;
+  }
+  
+  .text-h4 {
+    @apply text-base font-semibold;
+  }
+  
+  .text-body-lg {
+    @apply text-base font-normal leading-relaxed;
+  }
+  
+  .text-body {
+    @apply text-sm font-normal;
+    line-height: 1.6;
+  }
+  
+  .text-small {
+    @apply text-[13px] font-normal;
+  }
+  
+  .text-micro {
+    @apply text-[11px] font-medium uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .text-mono {
+    @apply font-mono text-[13px];
+  }
+  
+  /* Tabular nums for USDC amounts */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}

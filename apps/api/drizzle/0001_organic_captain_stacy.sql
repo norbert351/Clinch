@@ -1,0 +1,1 @@
+-- No schema changes needed for this migration (already covered by 0000/0002)
