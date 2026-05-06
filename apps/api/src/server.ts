@@ -1,30 +1,32 @@
-import 'dotenv/config';
-import http from 'http';
-import app from './app';
-import { config } from './config/env';
-import { initializeSocket } from './socket/gateway';
-import { startListener } from './blockchain/listener';
+import "dotenv/config";
+import http from "http";
+import app from "./app";
+import { config } from "./config/env";
+import { initializeSocket } from "./socket/gateway";
+import { startListener } from "./blockchain/listener";
 
 const server = http.createServer(app);
 
 initializeSocket(server);
 
 async function main(): Promise<void> {
+  const PORT = process.env.PORT || config.server.port;
   try {
-    await startListener();
-    console.log('✅ Blockchain event listener started');
+    startListener().catch((err) => {
+      console.error("❌ Listener error:", err);
+    });
   } catch (err) {
-    console.error('❌ Failed to start blockchain listener:', err);
+    console.error("❌ Failed to start blockchain listener:", err);
   }
 
-  server.listen(config.server.port, () => {
+  server.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════════════════════╗
 ║                                                       ║
 ║   🏦 Clinch API Server                                ║
 ║                                                       ║
-║   Server running on http://localhost:${config.server.port}             ║
-║   WebSocket ready for connections                     ║
+║   Server running on port ${PORT}                      ║
+║   WebSocket ready for connections                      ║
 ║                                                       ║
 ║   Endpoints:                                          ║
 ║   - GET  /api/health                                  ║
@@ -40,23 +42,23 @@ async function main(): Promise<void> {
   });
 }
 
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down gracefully...");
   server.close(() => {
-    console.log('Server closed');
+    console.log("Server closed");
     process.exit(0);
   });
 });
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
+process.on("SIGINT", () => {
+  console.log("SIGINT received, shutting down gracefully...");
   server.close(() => {
-    console.log('Server closed');
+    console.log("Server closed");
     process.exit(0);
   });
 });
 
 main().catch((err) => {
-  console.error('Failed to start server:', err);
+  console.error("Failed to start server:", err);
   process.exit(1);
 });
