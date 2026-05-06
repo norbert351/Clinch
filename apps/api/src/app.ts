@@ -22,10 +22,17 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, curl, Render health checks)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
+      // Check exact match or trailing-slash variation
+      const normalizedOrigin = origin.replace(/\/$/, '');
+      const isAllowed = allowedOrigins.some(allowed => {
+        const normalizedAllowed = allowed.replace(/\/$/, '');
+        return normalizedOrigin === normalizedAllowed;
+      });
+      if (isAllowed) {
         return callback(null, true);
       }
-      callback(new Error(`CORS blocked: ${origin}`));
+      console.warn(`[CORS] Blocked origin: ${origin}`);
+      callback(null, false); // Don't throw error, just deny
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

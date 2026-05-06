@@ -52,9 +52,17 @@ export async function verifyHandler(
     const siwe = new SiweMessage(message);
     console.log('[Auth] SIWE verify - address:', siwe.address, 'nonce:', siwe.nonce, 'domain:', siwe.domain);
 
+    // Validate domain matches expected frontend domain
+    const expectedDomain = config.cors.origin;
+    if (siwe.domain !== expectedDomain) {
+      console.error('[Auth] Domain mismatch - expected:', expectedDomain, '| received:', siwe.domain);
+      res.status(401).json(errorResponse(`Domain mismatch. Expected: ${expectedDomain}`));
+      return;
+    }
+
     const { data: fields, success, error } = await siwe.verify({
       signature,
-      domain: siwe.domain,
+      domain: expectedDomain,
       nonce: siwe.nonce,
     });
 

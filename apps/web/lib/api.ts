@@ -15,6 +15,7 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  // No withCredentials needed - we use JWT in Authorization header, not cookies
 });
 
 api.interceptors.request.use((config) => {
@@ -26,6 +27,18 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (typeof window !== "undefined" && error?.response?.status === 401) {
+      localStorage.removeItem("clinch_token");
+      // Force reload to trigger re-auth
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  },
+);
 
 export { api };
 

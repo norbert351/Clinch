@@ -19,6 +19,7 @@ import {
   getToken,
   getCurrentUser,
 } from "@/lib/api";
+import toast from "react-hot-toast";
 import type { User, WalletState } from "@/lib/types";
 
 interface WalletContextType extends WalletState {
@@ -105,6 +106,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       console.log("[SIWE] Signed in successfully");
     } catch (error: any) {
       console.error("[SIWE] Signing failed:", error?.message || error);
+      const errorMsg = error?.response?.data?.error || error?.message || "Sign-in failed";
+      toast.error(errorMsg);
       setHasSigned(false);
       // Clear any stale token
       clearToken();
