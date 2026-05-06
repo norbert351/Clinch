@@ -9,6 +9,7 @@ import {
 } from './auth.service';
 import { successResponse, errorResponse } from '../../middleware/error.middleware';
 import { SiweMessage } from 'siwe';
+import { config } from '../../config/env';
 
 export async function getNonceHandler(
   req: Request,
