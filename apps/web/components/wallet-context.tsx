@@ -74,6 +74,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setIsSigning(true);
     try {
       const nonce = await getNonce(address);
+      console.log("[SIWE] Nonce received:", nonce);
 
       const siweMessage = new SiweMessage({
         domain: window.location.host, // e.g. clinch-one.vercel.app
@@ -90,8 +91,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       });
 
       const message = siweMessage.prepareMessage();
+      console.log("[SIWE] Message to sign:", message);
+
       const signature = await signMessageAsync({ message });
+      console.log("[SIWE] Signature received:", signature);
+
       const { token, user: userData } = await verifySiwe(message, signature);
+      console.log("[SIWE] Verify response - token received:", !!token);
 
       setToken(token);
       setUser(userData);
@@ -100,6 +106,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       console.error("[SIWE] Signing failed:", error?.message || error);
       setHasSigned(false);
+      // Clear any stale token
+      clearToken();
     } finally {
       setIsSigning(false);
     }

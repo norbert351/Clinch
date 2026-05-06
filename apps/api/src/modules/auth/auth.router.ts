@@ -29,6 +29,7 @@ export async function getNonceHandler(
     }
 
     const nonce = generateNonce(address);
+    console.log('[Auth] Nonce generated for', address, ':', nonce);
     res.json(successResponse({ nonce }));
   } catch (err) {
     next(err);
@@ -49,32 +50,44 @@ export async function verifyHandler(
     }
 
     const siwe = new SiweMessage(message);
-    const { data: fields, success, error } = await siwe.verify({ signature });
+    console.log('[Auth] SIWE verify - address:', siwe.address, 'nonce:', siwe.nonce, 'domain:', siwe.domain);
+
+    const { data: fields, success, error } = await siwe.verify({
+      signature,
+      domain: siwe.domain,
+      nonce: siwe.nonce,
+    });
 
     if (!success || !fields) {
-      console.error('SIWE verification failed:', error);
+      console.error('[Auth] SIWE verification failed:', error);
       res.status(401).json(errorResponse('SIWE verification failed'));
       return;
     }
 
-    const address = fields.address;
+    const address = fields.address.toLowerCase();
     const storedNonce = getNonce(address);
+    console.log('[Auth] Stored nonce for', address, ':', storedNonce, '| Message nonce:', fields.nonce);
 
     if (!storedNonce) {
+      console.error('[Auth] Nonce not found for', address);
       res.status(401).json(errorResponse('Nonce not found. Please request a new nonce.'));
       return;
     }
 
     if (fields.nonce !== storedNonce) {
+      console.error('[Auth] Nonce mismatch for', address, '- stored:', storedNonce, '| received:', fields.nonce);
       res.status(401).json(errorResponse('Invalid nonce'));
       return;
     }
 
     deleteNonce(address);
+    console.log('[Auth] Nonce validated and deleted for', address);
 
     const user = await upsertUser(address);
+    console.log('[Auth] User upserted:', user.walletAddress);
 
     const token = signJwt({ wallet: user.walletAddress });
+    console.log('[Auth] JWT signed for', user.walletAddress);
 
     res.json(successResponse({
       token,
@@ -86,6 +99,7 @@ export async function verifyHandler(
       },
     }));
   } catch (err) {
+    console.error('[Auth] Verify handler error:', err);
     next(err);
   }
 }
