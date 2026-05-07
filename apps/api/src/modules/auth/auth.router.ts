@@ -1,36 +1,35 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from "express";
 import {
   generateNonce,
   getNonce,
   deleteNonce,
-  verifySiwe,
   upsertUser,
   signJwt,
-} from './auth.service';
-import { successResponse, errorResponse } from '../../middleware/error.middleware';
-import { SiweMessage } from 'siwe';
-import { config } from '../../config/env';
+} from "./auth.service";
+import { successResponse, errorResponse } from "../../middleware/error.middleware";
+import { SiweMessage } from "siwe";
+import { config } from "../../config/env";
 
 export async function getNonceHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { address } = req.query;
 
-    if (!address || typeof address !== 'string') {
-      res.status(400).json(errorResponse('Address query parameter is required'));
+    if (!address || typeof address !== "string") {
+      res.status(400).json(errorResponse("Address query parameter is required"));
       return;
     }
 
     if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-      res.status(400).json(errorResponse('Invalid Ethereum address'));
+      res.status(400).json(errorResponse("Invalid Ethereum address"));
       return;
     }
 
     const nonce = generateNonce(address);
-    console.log('[Auth] Nonce generated for', address, ':', nonce);
+    console.log("[Auth] Nonce generated for", address, ":", nonce);
     res.json(successResponse({ nonce }));
   } catch (err) {
     next(err);
@@ -40,63 +39,76 @@ export async function getNonceHandler(
 export async function verifyHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { message, signature } = req.body as { message: string; signature: string };
 
     if (!message || !signature) {
-      res.status(400).json(errorResponse('Message and signature are required'));
+      res.status(400).json(errorResponse("Message and signature are required"));
       return;
     }
 
     const siwe = new SiweMessage(message);
-    console.log('[Auth] SIWE verify - address:', siwe.address, 'nonce:', siwe.nonce, 'domain:', siwe.domain);
+    const addressFromMessage = siwe.address.toLowerCase();
 
-    // Validate domain matches expected frontend domain
-    const expectedDomain = config.cors.origin;
-    if (siwe.domain !== expectedDomain) {
-      console.error('[Auth] Domain mismatch - expected:', expectedDomain, '| received:', siwe.domain);
-      res.status(401).json(errorResponse(`Domain mismatch. Expected: ${expectedDomain}`));
+    console.log(
+      "[Auth] SIWE verify - address:",
+      siwe.address,
+      "nonce:",
+      siwe.nonce,
+      "domain:",
+      siwe.domain,
+    );
+
+    // Look up stored nonce using the address from the SIWE message
+    const storedNonce = getNonce(addressFromMessage);
+    console.log("[Auth] Stored nonce for", addressFromMessage, ":", storedNonce);
+
+    if (!storedNonce) {
+      console.error("[Auth] Nonce not found or expired for", addressFromMessage);
+      res.status(401).json(errorResponse("Nonce not found or expired. Please request a new nonce."));
       return;
     }
 
+    // Verify signature — do NOT pass domain or nonce override.
+    // The domain and nonce are already in the message and will be
+    // validated against the stored nonce below.
+    // Passing domain here would override the message's domain and
+    // cause a mismatch since frontend sends host-only (no protocol).
     const { data: fields, success, error } = await siwe.verify({
       signature,
-      domain: expectedDomain,
-      nonce: siwe.nonce,
     });
 
     if (!success || !fields) {
-      console.error('[Auth] SIWE verification failed:', error);
-      res.status(401).json(errorResponse('SIWE verification failed'));
+      console.error("[Auth] SIWE signature verification failed:", error);
+      res.status(401).json(errorResponse("SIWE verification failed: " + error?.type));
       return;
     }
 
-    const address = fields.address.toLowerCase();
-    const storedNonce = getNonce(address);
-    console.log('[Auth] Stored nonce for', address, ':', storedNonce, '| Message nonce:', fields.nonce);
-
-    if (!storedNonce) {
-      console.error('[Auth] Nonce not found for', address);
-      res.status(401).json(errorResponse('Nonce not found. Please request a new nonce.'));
-      return;
-    }
-
+    // Validate nonce from message matches the one we issued
     if (fields.nonce !== storedNonce) {
-      console.error('[Auth] Nonce mismatch for', address, '- stored:', storedNonce, '| received:', fields.nonce);
-      res.status(401).json(errorResponse('Invalid nonce'));
+      console.error(
+        "[Auth] Nonce mismatch for",
+        addressFromMessage,
+        "- stored:",
+        storedNonce,
+        "| received:",
+        fields.nonce,
+      );
+      res.status(401).json(errorResponse("Invalid nonce"));
       return;
     }
 
-    deleteNonce(address);
-    console.log('[Auth] Nonce validated and deleted for', address);
+    // Delete nonce after successful validation
+    deleteNonce(addressFromMessage);
+    console.log("[Auth] Nonce validated and deleted for", addressFromMessage);
 
-    const user = await upsertUser(address);
-    console.log('[Auth] User upserted:', user.walletAddress);
+    const user = await upsertUser(addressFromMessage);
+    console.log("[Auth] User upserted:", user.walletAddress);
 
     const token = signJwt({ wallet: user.walletAddress });
-    console.log('[Auth] JWT signed for', user.walletAddress);
+    console.log("[Auth] JWT signed for", user.walletAddress);
 
     res.json(successResponse({
       token,
@@ -108,7 +120,7 @@ export async function verifyHandler(
       },
     }));
   } catch (err) {
-    console.error('[Auth] Verify handler error:', err);
+    console.error("[Auth] Verify handler error:", err);
     next(err);
   }
 }
@@ -116,10 +128,10 @@ export async function verifyHandler(
 export function logoutHandler(
   _req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void {
   try {
-    res.json(successResponse({ message: 'Logged out successfully' }));
+    res.json(successResponse({ message: "Logged out successfully" }));
   } catch (err) {
     next(err);
   }

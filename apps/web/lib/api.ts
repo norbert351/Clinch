@@ -15,7 +15,8 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  // No withCredentials needed - we use JWT in Authorization header, not cookies
+  // JWT in Authorization header — no cookies, no withCredentials
+  timeout: 30000, // 30s timeout for Render cold starts
 });
 
 api.interceptors.request.use((config) => {
@@ -32,9 +33,9 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (typeof window !== "undefined" && error?.response?.status === 401) {
+      // Token expired or invalid — clear it silently
+      // Do NOT reload the page; let the wallet context handle re-auth
       localStorage.removeItem("clinch_token");
-      // Force reload to trigger re-auth
-      window.location.reload();
     }
     return Promise.reject(error);
   },

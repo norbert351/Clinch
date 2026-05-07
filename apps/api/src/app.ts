@@ -11,34 +11,41 @@ import notificationsRouter from "./modules/notifications/notifications.index";
 
 const app = express();
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL || "https://clinch-one.vercel.app",
-  "http://localhost:3000",
-  "http://localhost:3001",
-];
+const allowedOrigins = (
+  process.env.ALLOWED_ORIGINS ||
+  "https://clinch-one.vercel.app,http://localhost:3000"
+)
+  .split(",")
+  .map((o) => o.trim());
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, Render health checks)
+      // Allow requests with no origin (server-to-server, health checks, curl)
       if (!origin) return callback(null, true);
-      // Check exact match or trailing-slash variation
-      const normalizedOrigin = origin.replace(/\/$/, '');
-      const isAllowed = allowedOrigins.some(allowed => {
-        const normalizedAllowed = allowed.replace(/\/$/, '');
+
+      const normalizedOrigin = origin.replace(/\/$/, "");
+      const isAllowed = allowedOrigins.some((allowed) => {
+        const normalizedAllowed = allowed.replace(/\/$/, "");
         return normalizedOrigin === normalizedAllowed;
       });
+
       if (isAllowed) {
         return callback(null, true);
       }
-      console.warn(`[CORS] Blocked origin: ${origin}`);
-      callback(null, false); // Don't throw error, just deny
+
+      console.warn("[CORS] Blocked origin:", origin);
+      callback(new Error("Not allowed by CORS: " + origin));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    exposedHeaders: ["Authorization"],
   }),
 );
+
+// Handle preflight requests for all routes
+app.options("*", cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
