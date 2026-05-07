@@ -6,6 +6,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useRef,
   type ReactNode,
 } from "react";
 import { useAccount, useDisconnect, useSignMessage } from "wagmi";
@@ -54,6 +55,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [hasSigned, setHasSigned] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const signingRef = useRef(false);
+  const signedInAddressRef = useRef<string | null>(null);
+
+  const addressRef = useRef(address);
+  const chainIdRef = useRef(chainId);
+  const signMessageAsyncRef = useRef(signMessageAsync);
+
+  useEffect(() => {
+    addressRef.current = address;
+  }, [address]);
+
+  useEffect(() => {
+    chainIdRef.current = chainId;
+  }, [chainId]);
+
+  useEffect(() => {
+    signMessageAsyncRef.current = signMessageAsync;
+  }, [signMessageAsync]);
 
   const loadUser = useCallback(async () => {
     try {
@@ -63,27 +82,127 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setUser(null);
     }
   }, []);
-  const signIn = useCallback(async () => {
-    if (!address || isSigning) return;
 
-    // Wait for chainId — connector may not be ready immediately after connect
-    let chainIdNum = chainId;
-    if (!chainIdNum) {
-      chainIdNum = 5042002; // Arc testnet fallback
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setHasSigned(false);
+      setUser(null);
+      signingRef.current = false;
+      signedInAddressRef.current = null;
+      return;
     }
 
+    const existingToken = getToken();
+    if (existingToken && isTokenValid(existingToken)) {
+      console.log("[Auth] Valid token found, loading user");
+      setHasSigned(true);
+      loadUser();
+      return;
+    }
+
+    if (signingRef.current) {
+      console.log("[Auth] Signing already in progress, skipping");
+      return;
+    }
+
+    if (signedInAddressRef.current === address) {
+      console.log("[Auth] Already attempted sign-in for this address, skipping");
+      return;
+    }
+
+    console.log("[Auth] No valid token, starting SIWE flow");
+    clearToken();
+    signingRef.current = true;
+    signedInAddressRef.current = address;
     setIsSigning(true);
+
+    const currentAddress = address;
+    const currentChainId = chainIdRef.current || 5042002;
+    const currentSignMessage = signMessageAsyncRef.current;
+
+    (async () => {
+      try {
+        const nonce = await getNonce(currentAddress);
+        console.log("[SIWE] Nonce received:", nonce);
+
+        const siweMessage = new SiweMessage({
+          domain: window.location.host,
+          address: currentAddress,
+          statement: "Sign in with Ethereum to Clinch",
+          uri: window.location.origin,
+          version: "1",
+          chainId: currentChainId,
+          nonce,
+          issuedAt: new Date().toISOString(),
+          expirationTime: new Date(
+            Date.now() + 7 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        });
+
+        const message = siweMessage.prepareMessage();
+        console.log("[SIWE] Message to sign:", message);
+
+        const signature = await currentSignMessage({ message });
+        console.log("[SIWE] Signature received:", signature);
+
+        const { token, user: userData } = await verifySiwe(message, signature);
+        console.log("[SIWE] Verify response - token received:", !!token);
+
+        setToken(token);
+        setUser(userData);
+        setHasSigned(true);
+        console.log("[SIWE] Signed in successfully");
+      } catch (error: any) {
+        console.error("[SIWE] Signing failed:", error?.message || error);
+        const errorMsg = error?.response?.data?.error || error?.message || "Sign-in failed";
+        toast.error(errorMsg);
+        setHasSigned(false);
+        clearToken();
+        signedInAddressRef.current = null;
+      } finally {
+        setIsSigning(false);
+        signingRef.current = false;
+      }
+    })();
+  }, [isConnected, address, loadUser]);
+
+  const connect = useCallback(() => {
+    if (openConnectModal && !isConnected) {
+      openConnectModal();
+    }
+  }, [openConnectModal, isConnected]);
+
+  const disconnect = useCallback(() => {
+    wagmiDisconnect();
+    clearToken();
+    setHasSigned(false);
+    setUser(null);
+    signingRef.current = false;
+    signedInAddressRef.current = null;
+  }, [wagmiDisconnect]);
+
+  const signMessage = useCallback(async () => {
+    if (!addressRef.current || signingRef.current) return;
+
+    signingRef.current = true;
+    signedInAddressRef.current = addressRef.current;
+    setIsSigning(true);
+
+    const currentAddress = addressRef.current;
+    const currentChainId = chainIdRef.current || 5042002;
+    const currentSignMessage = signMessageAsyncRef.current;
+
     try {
-      const nonce = await getNonce(address);
+      const nonce = await getNonce(currentAddress);
       console.log("[SIWE] Nonce received:", nonce);
 
       const siweMessage = new SiweMessage({
-        domain: window.location.host, // e.g. clinch-one.vercel.app
-        address,
+        domain: window.location.host,
+        address: currentAddress,
         statement: "Sign in with Ethereum to Clinch",
-        uri: window.location.origin, // e.g. https://clinch-one.vercel.app
+        uri: window.location.origin,
         version: "1",
-        chainId: chainIdNum,
+        chainId: currentChainId,
         nonce,
         issuedAt: new Date().toISOString(),
         expirationTime: new Date(
@@ -94,7 +213,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const message = siweMessage.prepareMessage();
       console.log("[SIWE] Message to sign:", message);
 
-      const signature = await signMessageAsync({ message });
+      const signature = await currentSignMessage({ message });
       console.log("[SIWE] Signature received:", signature);
 
       const { token, user: userData } = await verifySiwe(message, signature);
@@ -109,48 +228,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const errorMsg = error?.response?.data?.error || error?.message || "Sign-in failed";
       toast.error(errorMsg);
       setHasSigned(false);
-      // Clear any stale token
       clearToken();
+      signedInAddressRef.current = null;
     } finally {
       setIsSigning(false);
+      signingRef.current = false;
     }
-  }, [address, chainId, isSigning, signMessageAsync]);
-
-  useEffect(() => {
-    if (!isConnected || !address) {
-      setHasSigned(false);
-      setUser(null);
-      return;
-    }
-
-    const existingToken = getToken();
-    if (existingToken && isTokenValid(existingToken)) {
-      setHasSigned(true);
-      loadUser();
-    } else {
-      clearToken();
-      setTimeout(() => {
-        signIn();
-      }, 0);
-    }
-  }, [isConnected, address, loadUser, signIn]);
-
-  const connect = useCallback(() => {
-    if (openConnectModal && !isConnected) {
-      openConnectModal(); // Opens RainbowKit modal
-    }
-  }, [openConnectModal, isConnected]);
-
-  const disconnect = useCallback(() => {
-    wagmiDisconnect();
-    clearToken();
-    setHasSigned(false);
-    setUser(null);
-  }, [wagmiDisconnect]);
-
-  const signMessage = useCallback(async () => {
-    await signIn();
-  }, [signIn]);
+  }, []);
 
   return (
     <WalletContext.Provider
