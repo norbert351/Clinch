@@ -3,6 +3,7 @@ import { users } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { SiweMessage } from 'siwe';
 import jwt from 'jsonwebtoken';
+import jwksClient from 'jwks-rsa';
 import { config } from '../../config/env';
 import { User } from '../../db/schema';
 
@@ -87,4 +88,46 @@ export function verifyJwt(token: string): JwtPayload | null {
   } catch {
     return null;
   }
+}
+
+let _jwksClient: ReturnType<typeof jwksClient> | null = null;
+
+function getJwksClient(): ReturnType<typeof jwksClient> {
+  if (!_jwksClient) {
+    const envId = config.dynamic.environmentId;
+    if (!envId) throw new Error('DYNAMIC_ENVIRONMENT_ID not configured');
+    _jwksClient = jwksClient({
+      jwksUri: `https://app.dynamic.xyz/api/v0/sdk/${envId}/.well-known/jwks`,
+      cache: true,
+      cacheMaxAge: 600_000,
+    });
+  }
+  return _jwksClient;
+}
+
+export async function verifyDynamicJWT(token: string): Promise<{
+  sub: string;
+  verified_credentials: Array<{ address: string; chain: string; format: string }>;
+  environment_id: string;
+}> {
+  if (!config.dynamic.environmentId) {
+    throw new Error('DYNAMIC_ENVIRONMENT_ID not configured on server');
+  }
+
+  return new Promise((resolve, reject) => {
+    jwt.verify(
+      token,
+      (header, callback) => {
+        getJwksClient().getSigningKey(header.kid, (err, key) => {
+          if (err) return callback(err);
+          callback(null, key?.getPublicKey());
+        });
+      },
+      { algorithms: ['RS256'] },
+      (err, decoded) => {
+        if (err) reject(new Error('Invalid Dynamic JWT: ' + err.message));
+        else resolve(decoded as any);
+      },
+    );
+  });
 }

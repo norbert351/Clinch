@@ -43,6 +43,20 @@ api.interceptors.response.use(
 
 export { api };
 
+export async function exchangeDynamicToken(
+  dynamicToken: string,
+  address: string,
+): Promise<{ token: string }> {
+  const response = await api.post<ApiResponse<{ token: string }>>(
+    "/api/auth/dynamic",
+    {
+      dynamicToken,
+      address,
+    },
+  );
+  return response.data.data!;
+}
+
 export async function getNonce(address: string): Promise<string> {
   const response = await api.get<ApiResponse<{ nonce: string }>>(
     `/api/auth/nonce?address=${address}`,

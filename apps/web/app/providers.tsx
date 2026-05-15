@@ -1,13 +1,14 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiProvider } from 'wagmi';
-import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
+import { DynamicContextProvider, getAuthToken } from '@dynamic-labs/sdk-react-core';
+import { DynamicWagmiConnector } from '@dynamic-labs/wagmi-connector';
+import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import { useState, type ReactNode } from 'react';
-import { config } from '@/lib/wagmi-config';
+import { evmNetworks } from '@/lib/wagmi-config';
 import { WalletProvider } from '@/components/wallet-context';
+import { exchangeDynamicToken, setToken, clearToken } from '@/lib/api';
 import { Toaster } from 'react-hot-toast';
-import '@rainbow-me/rainbowkit/styles.css';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -23,14 +24,36 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={darkTheme({
-          accentColor: '#4f6ef7',
-          accentColorForeground: 'white',
-          borderRadius: 'medium',
-          fontStack: 'system',
-        })}>
+    <DynamicContextProvider
+      settings={{
+        environmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID!,
+        walletConnectors: [EthereumWalletConnectors],
+        overrides: { evmNetworks },
+        initialAuthenticationMode: 'connect-and-sign',
+        appName: 'Clinch',
+        siweStatement: 'Sign in with Ethereum to Clinch',
+        events: {
+          onAuthSuccess: async ({ primaryWallet }) => {
+            const dynamicToken = getAuthToken();
+            if (!dynamicToken || !primaryWallet?.address) return;
+            try {
+              const { token } = await exchangeDynamicToken(
+                dynamicToken,
+                primaryWallet.address,
+              );
+              setToken(token);
+            } catch (err) {
+              console.error('[Dynamic] Token exchange failed:', err);
+            }
+          },
+          onLogout: () => {
+            clearToken();
+          },
+        },
+      }}
+    >
+      <DynamicWagmiConnector>
+        <QueryClientProvider client={queryClient}>
           <WalletProvider>
             {children}
             <Toaster
@@ -44,8 +67,8 @@ export function Providers({ children }: { children: ReactNode }) {
               }}
             />
           </WalletProvider>
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+        </QueryClientProvider>
+      </DynamicWagmiConnector>
+    </DynamicContextProvider>
   );
 }

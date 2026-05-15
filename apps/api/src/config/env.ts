@@ -5,6 +5,7 @@ dotenv.config();
 
 const envSchema = z.object({
   DATABASE_URL: z.string().url(),
+  DYNAMIC_ENVIRONMENT_ID: z.string().uuid().optional(),
   RPC_URL: z.string().url().optional(),
   RPC_URLS: z.string().optional(),
   WS_RPC_URL: z.string().url().optional(),
@@ -40,6 +41,9 @@ export const config = {
   auth: {
     jwtSecret: env.JWT_SECRET,
     expiresIn: '7d',
+  },
+  dynamic: {
+    environmentId: env.DYNAMIC_ENVIRONMENT_ID,
   },
   admin: {
     wallet: env.ADMIN_WALLET,

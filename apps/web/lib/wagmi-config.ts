@@ -1,11 +1,3 @@
-import { createConfig, http, createStorage } from 'wagmi';
-import { mainnet, arbitrum, base, polygon } from 'wagmi/chains';
-import { connectorsForWallets } from '@rainbow-me/rainbowkit';
-import {
-  metaMaskWallet,
-  walletConnectWallet,
-  coinbaseWallet,
-} from '@rainbow-me/rainbowkit/wallets';
 import { defineChain } from 'viem';
 
 const RPC_URLS = [
@@ -39,46 +31,25 @@ export const arcTestnet = defineChain({
   },
 });
 
-if (!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID === 'your_walletconnect_project_id') {
-  console.warn(
-    'NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set or is using placeholder value. ' +
-    'WalletConnect will not work. ' +
-    'Get a free project ID at https://cloud.walletconnect.com'
-  );
-}
-
-const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '';
-
-const connectors = connectorsForWallets(
-  [
-    {
-      groupName: 'Recommended',
-      wallets: [metaMaskWallet, walletConnectWallet, coinbaseWallet],
-    },
-  ],
-  {
-    appName: 'Clinch',
-    projectId: projectId,
-  }
-);
-
-export const config = createConfig({
-  chains: [arcTestnet, mainnet, arbitrum, base, polygon],
-  connectors,
-  transports: {
-    [arcTestnet.id]: http('https://rpc.testnet.arc.network'),
-    [mainnet.id]: http(),
-    [arbitrum.id]: http(),
-    [base.id]: http(),
-    [polygon.id]: http(),
-  },
-  storage: createStorage({
-    storage: typeof window !== 'undefined'
-      ? window.localStorage
-      : undefined,
-  }),
-});
-
 export const ARC_CHAIN_ID = arcTestnet.id;
 export const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000') as `0x${string}`;
 export const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS || '0x0000000000000000000000000000000000000') as `0x${string}`;
+
+// Networks configuration for Dynamic.xyz
+export const evmNetworks = [
+  {
+    blockExplorerUrls: ['https://explorer.arc.network'],
+    chainId: ARC_CHAIN_ID,
+    name: 'Arc Network Testnet',
+    iconUrls: [],
+    nativeCurrency: {
+      decimals: 6,
+      name: 'USD Coin',
+      symbol: 'USDC',
+    },
+    networkId: ARC_CHAIN_ID,
+    privateCustomerRpcUrls: ['https://rpc.testnet.arc.network'],
+    rpcUrls: ['https://rpc.testnet.arc.network'],
+    vanityName: 'Arc Testnet',
+  },
+];

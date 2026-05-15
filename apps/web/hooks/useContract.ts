@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { parseUnits, formatUnits, createPublicClient, http, decodeEventLog } from 'viem';
 import { CONTRACT_ADDRESS, ESCROW_ABI, DEAL_TYPES, OUTCOMES, USDC_ADDRESS } from '@/lib/contract';
-import { ARC_CHAIN_ID, arcTestnet, config } from '@/lib/wagmi-config';
+import { ARC_CHAIN_ID, arcTestnet } from '@/lib/wagmi-config';
 
 export const publicClient = createPublicClient({
   chain: arcTestnet,

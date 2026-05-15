@@ -5,6 +5,7 @@ import {
   deleteNonce,
   upsertUser,
   signJwt,
+  verifyDynamicJWT,
 } from "./auth.service";
 import { successResponse, errorResponse } from "../../middleware/error.middleware";
 import { SiweMessage } from "siwe";
@@ -122,6 +123,50 @@ export async function verifyHandler(
   } catch (err) {
     console.error("[Auth] Verify handler error:", err);
     next(err);
+  }
+}
+
+export async function dynamicAuthHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { dynamicToken, address } = req.body as { dynamicToken: string; address: string };
+
+    if (!dynamicToken || !address) {
+      res.status(400).json(errorResponse('dynamicToken and address are required'));
+      return;
+    }
+
+    // Verify the Dynamic JWT
+    const payload = await verifyDynamicJWT(dynamicToken);
+
+    // Confirm address matches one in the verified credentials
+    const walletCred = payload.verified_credentials?.find(
+      (c) => c.address?.toLowerCase() === address?.toLowerCase(),
+    );
+    if (!walletCred) {
+      throw new Error('Address mismatch in Dynamic JWT');
+    }
+
+    // Create or update user in DB
+    const user = await upsertUser(address.toLowerCase());
+
+    // Issue your own JWT (same format as existing SIWE flow)
+    const token = signJwt({ wallet: user.walletAddress });
+
+    res.json(successResponse({
+      token,
+      user: {
+        id: user.id,
+        walletAddress: user.walletAddress,
+        displayName: user.displayName,
+        email: user.email,
+      },
+    }));
+  } catch (err: any) {
+    res.status(401).json(errorResponse(err.message || 'Dynamic auth failed'));
   }
 }
 
