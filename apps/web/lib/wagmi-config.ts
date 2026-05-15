@@ -1,4 +1,5 @@
 import { defineChain } from 'viem';
+import { createConfig, http } from 'wagmi';
 
 const RPC_URLS = [
   'https://rpc.testnet.arc.network',
@@ -34,6 +35,15 @@ export const arcTestnet = defineChain({
 export const ARC_CHAIN_ID = arcTestnet.id;
 export const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000') as `0x${string}`;
 export const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS || '0x0000000000000000000000000000000000000') as `0x${string}`;
+
+// Static wagmi config used as fallback during prerendering/SSR.
+// At runtime, DynamicWagmiConnector overrides this with its own config.
+export const wagmiConfig = createConfig({
+  chains: [arcTestnet],
+  transports: {
+    [arcTestnet.id]: http(),
+  },
+});
 
 // Networks configuration for Dynamic.xyz
 export const evmNetworks = [
