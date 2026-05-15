@@ -23,10 +23,34 @@ export function Providers({ children }: { children: ReactNode }) {
       })
   );
 
+  const envId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
+
+  // During build/prerendering the env var may not be set.
+  // Dynamic requires it at runtime; provide a fallback so the build passes.
+  if (!envId) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <WalletProvider>
+          {children}
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: '#1a1d26',
+                color: '#e4e7ec',
+                border: '1px solid #2a2e3a',
+              },
+            }}
+          />
+        </WalletProvider>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <DynamicContextProvider
       settings={{
-        environmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID!,
+        environmentId: envId,
         walletConnectors: [EthereumWalletConnectors],
         overrides: { evmNetworks },
         initialAuthenticationMode: 'connect-and-sign',
