@@ -1,5 +1,4 @@
-import { wsClient, publicClient, CONTRACT_ABI, config } from './contract';
-import { getActiveDeals } from '../modules/deals/deals.service';
+import { CONTRACT_ABI, config } from './contract';
 import { handleDealCreated } from './handlers/deal-created.handler';
 import { handleDeposited } from './handlers/deposited.handler';
 import { handleVoteSubmitted } from './handlers/vote-submitted.handler';
@@ -9,9 +8,13 @@ import { handleCancelled } from './handlers/cancelled.handler';
 import { handleExpired } from './handlers/expired.handler';
 import { getPublicClient } from '../config/rpc';
 
-let isListening = false;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_DELAY = 30000;
+let isShuttingDown = false;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let lastPolledBlock = 0n;
+let isPolling = false;
+let pollFailCount = 0;
+const MAX_POLL_RETRIES = 5;
+const POLL_INTERVAL = 10_000;
 
 const hasDealCreated = CONTRACT_ABI.some(
   (item: any) => item.type === 'event' && item.name === 'DealCreated'
@@ -20,7 +23,7 @@ if (!hasDealCreated) {
   console.error('[Listener] CRITICAL: DealCreated not in ABI!');
 }
 
-type EscrowEventName = 
+type EscrowEventName =
   | 'DealCreated'
   | 'Deposited'
   | 'VoteSubmitted'
@@ -29,7 +32,7 @@ type EscrowEventName =
   | 'Cancelled'
   | 'Expired';
 
-const ALL_EVENTS = [
+const ALL_EVENTS: EscrowEventName[] = [
   'DealCreated',
   'Deposited',
   'VoteSubmitted',
@@ -37,16 +40,7 @@ const ALL_EVENTS = [
   'Resolved',
   'Cancelled',
   'Expired',
-] as const;
-
-const ACTIVE_DEAL_EVENTS = [
-  'Deposited',
-  'VoteSubmitted',
-  'Disputed',
-  'Resolved',
-  'Cancelled',
-  'Expired',
-] as const;
+];
 
 async function processEvent(event: {
   eventName: string;
@@ -155,155 +149,132 @@ async function processEvent(event: {
   }
 }
 
-async function subscribeToAllEvents(): Promise<() => void> {
-  const unwatchFns: (() => void)[] = [];
+function getEventAbi(eventName: string): any {
+  return CONTRACT_ABI.find(
+    (item: any) => item.type === 'event' && item.name === eventName
+  );
+}
 
-  for (const eventName of ALL_EVENTS) {
-    const unwatch = wsClient.watchContractEvent({
-      address: config.blockchain.contractAddress as `0x${string}`,
-      abi: CONTRACT_ABI,
-      eventName: eventName,
-      onLogs: async (logs) => {
-        for (const log of logs) {
-          await processEvent({
-            eventName: (log as any).eventName as string,
-            args: (log as any).args as Record<string, unknown>,
-            transactionHash: log.transactionHash as `0x${string}`,
-            blockNumber: log.blockNumber as bigint,
-          });
-        }
-      },
-      onError: (error) => {
-        console.error(`WebSocket error for ${eventName}:`, error);
-        reconnect();
-      },
+async function fetchAndProcessEvents(
+  eventName: EscrowEventName,
+  fromBlock: bigint,
+  toBlock: bigint
+): Promise<void> {
+  const eventAbi = getEventAbi(eventName);
+  if (!eventAbi) return;
+
+  const rpcClient = getPublicClient();
+  const logs = await rpcClient.getLogs({
+    address: config.blockchain.contractAddress as `0x${string}`,
+    event: eventAbi,
+    fromBlock,
+    toBlock,
+  });
+
+  for (const log of logs) {
+    await processEvent({
+      eventName,
+      args: (log as any).args as Record<string, unknown>,
+      transactionHash: log.transactionHash as `0x${string}`,
+      blockNumber: log.blockNumber as bigint,
     });
-    unwatchFns.push(unwatch);
-  }
-
-  return () => unwatchFns.forEach((fn) => fn());
-}
-
-async function subscribeToActiveDeals(): Promise<void> {
-  try {
-    const activeDeals = await getActiveDeals();
-
-    for (const deal of activeDeals) {
-      for (const eventName of ACTIVE_DEAL_EVENTS) {
-        const unwatch = wsClient.watchContractEvent({
-          address: config.blockchain.contractAddress as `0x${string}`,
-          abi: CONTRACT_ABI,
-          eventName: eventName,
-          args: {
-            dealId: BigInt(deal.onChainId),
-          },
-          onLogs: async (logs) => {
-            for (const log of logs) {
-              await processEvent({
-                eventName: (log as any).eventName as string,
-                args: (log as any).args as Record<string, unknown>,
-                transactionHash: log.transactionHash as `0x${string}`,
-                blockNumber: log.blockNumber as bigint,
-              });
-            }
-          },
-          onError: (error) => {
-            console.error(`WebSocket error for deal ${deal.onChainId}:`, error);
-          },
-        });
-
-      }
-    }
-  } catch (err) {
-    console.error('Error subscribing to active deals:', err);
   }
 }
 
-async function reconnect(): Promise<void> {
-  if (isListening) return;
-
-  isListening = true;
-  reconnectAttempts++;
-
-  const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), MAX_RECONNECT_DELAY);
-  console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
-
-  await new Promise((resolve) => setTimeout(resolve, delay));
-
-  try {
-    await startListener();
-    console.log('Reconnected successfully');
-    reconnectAttempts = 0;
-  } catch (err) {
-    console.error('Reconnection failed:', err);
-    isListening = false;
-    reconnect();
+async function pollEvents(): Promise<void> {
+  if (isPolling) {
+    console.warn('[Listener] Previous poll still running. Skipping this cycle.');
+    return;
   }
-}
 
-let unwatchAll: (() => void) | null = null;
+  isPolling = true;
 
-async function backfillDeposits(): Promise<void> {
   try {
     const rpcClient = getPublicClient();
     const currentBlock = await rpcClient.getBlockNumber();
-    const fromBlock = currentBlock - 5000n;
 
-    const depositedEvent = CONTRACT_ABI.find(
-      (item) => item.type === 'event' && item.name === 'Deposited'
-    );
-    if (!depositedEvent) {
-      console.error('[Backfill] Deposited event not found in ABI');
+    if (lastPolledBlock === 0n) {
+      lastPolledBlock = currentBlock;
       return;
     }
 
-    const logs = await rpcClient.getLogs({
-      address: config.blockchain.contractAddress as `0x${string}`,
-      event: depositedEvent,
-      fromBlock,
-      toBlock: 'latest',
-    });
+    const fromBlock = lastPolledBlock + 1n;
+    if (fromBlock > currentBlock) return;
 
-    for (const log of logs) {
-      await processEvent({
-        eventName: 'Deposited',
-        args: (log as any).args as Record<string, unknown>,
-        transactionHash: log.transactionHash as `0x${string}`,
-        blockNumber: log.blockNumber as bigint,
-      });
+    for (const eventName of ALL_EVENTS) {
+      await fetchAndProcessEvents(eventName, fromBlock, currentBlock);
     }
+
+    lastPolledBlock = currentBlock;
+    pollFailCount = 0;
+  } catch (err: any) {
+    pollFailCount++;
+    console.error(
+      `[Listener] Poll error (${pollFailCount}/${MAX_POLL_RETRIES}):`,
+      err?.message || err
+    );
+    if (pollFailCount >= MAX_POLL_RETRIES) {
+      console.error('[Listener] Max poll retries reached. Will retry on next cycle.');
+      pollFailCount = 0;
+    }
+    throw err;
+  } finally {
+    isPolling = false;
+  }
+}
+
+async function backfillEvents(): Promise<void> {
+  try {
+    const rpcClient = getPublicClient();
+    const currentBlock = await rpcClient.getBlockNumber();
+    const fromBlock = currentBlock - 2000n > 0n ? currentBlock - 2000n : 0n;
+
+    if (fromBlock >= currentBlock) return;
+
+    for (const eventName of ALL_EVENTS) {
+      await fetchAndProcessEvents(eventName, fromBlock, currentBlock);
+    }
+
+    lastPolledBlock = currentBlock;
   } catch (err: any) {
     console.error('[Backfill] Error:', err?.message || err);
   }
 }
 
 export async function startListener(): Promise<void> {
-  try {
-    const blockNumber = await publicClient.getBlockNumber();
-    console.log('[Listener] WebSocket connected. Current block:', blockNumber.toString());
-  } catch (err: any) {
-    console.error('[Listener] WebSocket connection FAILED:', err?.message || err);
-  }
+  if (isShuttingDown) return;
 
   try {
-    unwatchAll = await subscribeToAllEvents();
-    await subscribeToActiveDeals();
-    isListening = false;
-    console.log('[Listener] Blockchain event listener started successfully');
+    const rpcClient = getPublicClient();
+    const blockNumber = await rpcClient.getBlockNumber();
+    console.log('[Listener] HTTP RPC connected. Current block:', blockNumber.toString());
 
-    setTimeout(async () => {
-      await backfillDeposits();
-    }, 3000);
+    await backfillEvents();
+    console.log('[Listener] Backfill complete. Starting polling...');
+
+    if (pollTimer) {
+      clearInterval(pollTimer);
+    }
+
+    pollTimer = setInterval(() => {
+      pollEvents().catch(() => {});
+    }, POLL_INTERVAL);
+
+    console.log(`[Listener] Blockchain event polling started (${POLL_INTERVAL / 1000}s interval)`);
   } catch (err: any) {
     console.error('[Listener] Failed to start listener:', err?.message || err);
-    throw err;
+    if (!isShuttingDown) {
+      setTimeout(startListener, 5000);
+    }
   }
 }
 
 export function stopListener(): void {
-  if (unwatchAll) {
-    unwatchAll();
-    unwatchAll = null;
+  isShuttingDown = true;
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
-  console.log('Blockchain event listener stopped');
+  isPolling = false;
+  console.log('[Listener] Blockchain event polling stopped');
 }

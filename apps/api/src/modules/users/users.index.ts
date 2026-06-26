@@ -10,6 +10,6 @@ const router = Router();
 
 router.get('/me', jwtMiddleware, getMeHandler);
 router.patch('/me', jwtMiddleware, updateMeHandler);
-router.get('/:address/deals', getUserDealsHandler);
+router.get('/:address/deals', jwtMiddleware, getUserDealsHandler);
 
 export default router;

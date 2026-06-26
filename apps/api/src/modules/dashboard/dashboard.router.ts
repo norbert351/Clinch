@@ -4,6 +4,7 @@ import {
   getGlobalDashboardStats,
 } from './dashboard.service';
 import { successResponse, errorResponse } from '../../middleware/error.middleware';
+import { validateAddress } from '../../middleware/validate';
 
 export async function getUserDashboardHandler(
   req: Request,
@@ -11,10 +12,10 @@ export async function getUserDashboardHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const address = (req.query.address as string) || req.wallet;
+    const address = req.wallet ? validateAddress(req.wallet) : null;
     
     if (!address) {
-      res.status(400).json(errorResponse('Address is required'));
+      res.status(401).json(errorResponse('Wallet authentication required'));
       return;
     }
 

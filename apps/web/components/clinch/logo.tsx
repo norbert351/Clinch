@@ -1,19 +1,45 @@
-import { cn } from "@/lib/utils";
+import Image from 'next/image';
 
 interface LogoProps {
-  className?: string;
-  showDot?: boolean;
+  size?: number;
+  showText?: boolean;
+  textSize?: string;
 }
 
-export function Logo({ className, showDot = true }: LogoProps) {
+export function ClinchLogo({
+  size = 32,
+  showText = true,
+  textSize = 'text-lg',
+}: LogoProps) {
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <span className="text-lg font-semibold text-clinch-text-primary">
-        Clinch
-      </span>
-      {showDot && (
-        <span className="h-1.5 w-1.5 rounded-full bg-clinch-accent" />
+    <div className="flex items-center gap-2.5">
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <Image
+          src="/logo.png"
+          alt="Clinch"
+          width={size}
+          height={size}
+          className="object-contain"
+          priority
+        />
+      </div>
+      {showText && (
+        <div className="flex flex-col leading-none">
+          <span
+            className={[
+              'font-display font-bold italic tracking-tight',
+              'gradient-brand-text',
+              textSize,
+            ].join(' ')}
+          >
+            Clinch
+          </span>
+        </div>
       )}
     </div>
   );
+}
+
+export function Logo(props: LogoProps) {
+  return <ClinchLogo {...props} />;
 }

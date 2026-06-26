@@ -5,13 +5,16 @@ import {
   getDealByInviteToken,
   updateDealMetadata,
   generateInviteToken,
+  getPublicPlatformStats,
 } from './deals.service';
+import { generateSettlementSummary } from '../ai/ai.service';
 import { successResponse, errorResponse } from '../../middleware/error.middleware';
 import { publicClient, CONTRACT_ABI, config } from '../../blockchain/contract';
 import { db } from '../../config/db';
 import { deals } from '../../db/schema';
 import { eq, or, desc, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { validateAddress, validateOnChainId } from '../../middleware/validate';
 
 export async function getDealsHandler(
   req: Request,
@@ -98,14 +101,26 @@ export async function getUserDealsHandler(
   try {
     const { address } = req.params;
     const addressStr = Array.isArray(address) ? address[0] : address;
+    const wallet = req.wallet ? validateAddress(req.wallet) : null;
+    const requestedAddress = validateAddress(addressStr);
+
+    if (!wallet) {
+      res.status(401).json(errorResponse('Wallet authentication required'));
+      return;
+    }
+
+    if (wallet !== requestedAddress) {
+      res.status(403).json(errorResponse('Not authorized to view these deals'));
+      return;
+    }
 
     const userDeals = await db
       .select()
       .from(deals)
       .where(
         or(
-          sql`lower(${deals.partyA}) = ${addressStr.toLowerCase()}`,
-          sql`lower(${deals.partyB}) = ${addressStr.toLowerCase()}`
+          sql`lower(${deals.partyA}) = ${requestedAddress}`,
+          sql`lower(${deals.partyB}) = ${requestedAddress}`
         )
       )
       .orderBy(desc(deals.createdAt));
@@ -129,8 +144,9 @@ export async function updateMetadataHandler(
       description?: string;
       inviteToken?: string;
     };
+    const onChainIdNum = validateOnChainId(onChainId);
 
-    let deal = await getDealByOnChainId(BigInt(onChainId));
+    let deal = await getDealByOnChainId(BigInt(onChainIdNum));
 
     if (!deal) {
       try {
@@ -138,7 +154,7 @@ export async function updateMetadataHandler(
           address: config.blockchain.contractAddress as `0x${string}`,
           abi: CONTRACT_ABI,
           functionName: 'getDeal',
-          args: [BigInt(onChainId)],
+          args: [BigInt(onChainIdNum)],
         });
 
         const [partyA, partyB, dealType, status, partyAAmount, partyBAmount, , , feePercent, arbitrator, createdAt] =
@@ -148,7 +164,7 @@ export async function updateMetadataHandler(
           address: config.blockchain.contractAddress as `0x${string}`,
           abi: CONTRACT_ABI,
           functionName: 'getDealExpiry',
-          args: [BigInt(onChainId)],
+          args: [BigInt(onChainIdNum)],
         }) as bigint;
 
         const dealTypeString = Number(dealType) === 1 ? 'OneSided' : 'MutualStake';
@@ -191,12 +207,13 @@ export async function updateMetadataHandler(
           inviteToken: generateInviteToken(),
           partyADepositComplete: partyADep,
           partyBDepositComplete: partyBdep,
+          title: `Deal #${onChainId}`,
         }).onConflictDoUpdate({
           target: deals.onChainId,
           set: { status: statusMap[Number(status)] || 'Active', updatedAt: new Date() },
         });
 
-        deal = await getDealByOnChainId(BigInt(onChainId));
+        deal = await getDealByOnChainId(BigInt(onChainIdNum));
       } catch (backfillErr) {
         console.error('[updateMetadataHandler] Backfill failed:', backfillErr);
       }
@@ -214,9 +231,44 @@ export async function updateMetadataHandler(
     }
 
     const finalInviteToken = inviteToken ?? (deal.inviteToken || generateInviteToken());
-    const updated = await updateDealMetadata(BigInt(onChainId), { title, description, inviteToken: finalInviteToken });
+    const updated = await updateDealMetadata(BigInt(onChainIdNum), { title, description, inviteToken: finalInviteToken });
 
     res.json(successResponse(updated));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getPublicPlatformStatsHandler(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const stats = await getPublicPlatformStats();
+    res.json(successResponse(stats));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function triggerAISummaryHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { onChainId } = req.params;
+    const onChainIdStr = Array.isArray(onChainId) ? onChainId[0] : onChainId;
+    const onChainIdNum = parseInt(onChainIdStr);
+
+    if (isNaN(onChainIdNum)) {
+      res.status(400).json(errorResponse('Invalid onChainId'));
+      return;
+    }
+
+    const summary = await generateSettlementSummary(onChainIdNum);
+    res.json(successResponse({ summary }));
   } catch (err) {
     next(err);
   }
@@ -229,17 +281,15 @@ export async function backfillDealHandler(
 ): Promise<void> {
   const { onChainId } = req.params;
   const onChainIdStr = Array.isArray(onChainId) ? onChainId[0] : onChainId;
-  const onChainIdNum = parseInt(onChainIdStr);
-
-  console.log('[Backfill] Starting backfill for deal:', onChainIdNum);
 
   try {
-    if (isNaN(onChainIdNum)) {
-      res.status(400).json(errorResponse('Invalid onChainId'));
+    const wallet = req.wallet ? validateAddress(req.wallet) : null;
+    const onChainIdNum = validateOnChainId(onChainIdStr);
+
+    if (!wallet) {
+      res.status(401).json(errorResponse('Wallet authentication required'));
       return;
     }
-
-    console.log('[Backfill] Fetching deal from chain:', onChainIdNum);
 
     const dealData = await publicClient.readContract({
       address: config.blockchain.contractAddress as `0x${string}`,
@@ -247,8 +297,6 @@ export async function backfillDealHandler(
       functionName: 'getDeal',
       args: [BigInt(onChainIdNum)],
     });
-
-    console.log('[Backfill] Raw deal from chain:', dealData);
 
     const [
       partyA, partyB, dealType, status,
@@ -280,6 +328,14 @@ export async function backfillDealHandler(
       5: 'Expired',
     };
 
+    if (
+      wallet !== (partyA as string).toLowerCase() &&
+      wallet !== (partyB as string).toLowerCase()
+    ) {
+      res.status(403).json(errorResponse('Not authorized to backfill this deal'));
+      return;
+    }
+
     const [depositsDataA, depositsDataB] = await Promise.allSettled([
       publicClient.readContract({
         address: config.blockchain.contractAddress as `0x${string}`,
@@ -298,7 +354,6 @@ export async function backfillDealHandler(
     const partyADep = depositsDataA.status === 'fulfilled' ? Boolean(depositsDataA.value) : false;
     const partyBdep = depositsDataB.status === 'fulfilled' ? Boolean(depositsDataB.value) : false;
 
-    console.log('[Backfill] Writing to database...');
     const [savedDeal] = await db.insert(deals).values({
       onChainId: onChainIdNum,
       partyA: (partyA as string).toLowerCase(),
@@ -313,6 +368,7 @@ export async function backfillDealHandler(
       inviteToken,
       partyADepositComplete: partyADep,
       partyBDepositComplete: partyBdep,
+      title: `Deal #${onChainIdNum}`,
     }).onConflictDoUpdate({
       target: deals.onChainId,
       set: {
@@ -323,7 +379,6 @@ export async function backfillDealHandler(
       },
     }).returning();
 
-    console.log('[Backfill] Deal saved successfully:', savedDeal?.id);
     res.json(successResponse(savedDeal));
   } catch (error: any) {
     console.error('[Backfill] Failed:', error?.message || error);

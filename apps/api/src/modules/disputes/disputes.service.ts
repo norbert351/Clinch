@@ -1,8 +1,10 @@
 import { db } from '../../config/db';
 import { disputes, deals } from '../../db/schema';
 import { eq, isNull, and, or, desc, sql } from 'drizzle-orm';
+import { config } from '../../config/env';
+import { trackAnalyticsEvent } from '../analytics/analytics.service';
 
-const PLATFORM_ARBITRATOR = '0xdd4c983Cd57Ee7A6F8Ef0BbB8715B19bdF5C1b61';
+const PLATFORM_ARBITRATOR = config.admin.arbitrator;
 
 export async function getDisputesForArbitrator(
   arbitratorWallet: string
@@ -81,6 +83,20 @@ export async function createDispute(
       reasonText,
     })
     .returning();
+
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.onChainId, Number(onChainId)),
+  });
+
+  trackAnalyticsEvent({
+    type: 'DISPUTE_OPENED',
+    wallet: raisedBy,
+    dealId: Number(onChainId),
+    amount: deal ? (Number(deal.amountA) || 0) + (Number(deal.amountB) || 0) : null,
+    metadata: {
+      source: 'api',
+    },
+  });
 
   return dispute;
 }

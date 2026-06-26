@@ -17,6 +17,7 @@ import {
 import {
   DealStatusBadge,
   DealTypeChip,
+  GatewayFundingModal,
   WalletAddress,
   USDCAmount,
 } from "@/components/clinch";
@@ -29,7 +30,8 @@ import { toast } from "react-hot-toast";
 import type { DealType } from "@/lib/types";
 import { useBalance } from "wagmi";
 import { USDC_ADDRESS } from "@/lib/contract";
-import { getDealByOnChainId, updateDealMetadata } from "@/lib/api";
+import { API_URL, getDealByOnChainId, updateDealMetadata } from "@/lib/api";
+import { useUnifiedBalance } from "@/hooks/useUnifiedBalance";
 
 const expiryOptions = [
   { value: 1, label: "24 hours" },
@@ -40,8 +42,19 @@ const expiryOptions = [
 
 export default function NewDealPage() {
   const router = useRouter();
-  const { address, isConnected, hasSigned } = useWallet();
-  const { createDeal, isLoading: isContractLoading } = useContract();
+  const {
+    address,
+    isConnected,
+    hasSigned,
+    isWalletClientReady: contextWalletReady,
+    isWalletClientLoading,
+  } = useWallet();
+  const {
+    createDeal,
+    isLoading: isContractLoading,
+    isWalletReady: contractWalletReady,
+    isWalletClientLoading: contractWalletLoading,
+  } = useContract();
   const { isCorrectNetwork, switchToArc, isSwitching } = useNetworkCheck();
 
   const { data: usdcBalance, isLoading: isLoadingBalance } = useBalance({
@@ -63,10 +76,12 @@ export default function NewDealPage() {
   const [theirDeposit, setTheirDeposit] = useState("");
   const [expiryDays, setExpiryDays] = useState(7);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [fundingOpen, setFundingOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [syncingDeal, setSyncingDeal] = useState(false);
   const [currentDealId, setCurrentDealId] = useState<number | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const submitLockRef = useRef(false);
 
   const isValidAddress = (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr);
 
@@ -86,24 +101,53 @@ export default function NewDealPage() {
   const formattedBalance = usdcBalance
     ? Number(usdcBalance.value) / 10 ** usdcBalance.decimals
     : 0;
+  const { data: unifiedBalance, isLoading: isLoadingUnifiedBalance } = useUnifiedBalance(
+    !!address && hasSigned,
+    address,
+  );
+  const unifiedBalanceAmount = unifiedBalance?.totalBalance ?? null;
 
   const hasEnoughBalance = formattedBalance >= yourDepositNum;
+  const hasEnoughUnifiedBalance =
+    unifiedBalanceAmount !== null && unifiedBalanceAmount >= yourDepositNum;
+  const isWalletReady =
+    Boolean(address) &&
+    Boolean(contextWalletReady) &&
+    Boolean(contractWalletReady);
+  const walletInitializing =
+    Boolean(address) &&
+    !isWalletReady &&
+    (isWalletClientLoading || contractWalletLoading || isConnected);
+  const isSubmitting = isProcessing || isContractLoading;
 
   const handleSubmit = async () => {
     setSubmitError(null);
 
+    if (submitLockRef.current || isSubmitting) return;
+    submitLockRef.current = true;
+
     if (!address || !hasSigned) {
       toast.error("Please connect wallet and sign in");
+      submitLockRef.current = false;
+      return;
+    }
+
+    if (!isWalletReady) {
+      setSubmitError("Wallet still initializing");
+      toast.error("Wallet still initializing");
+      submitLockRef.current = false;
       return;
     }
 
     if (!isCorrectNetwork) {
       await switchToArc();
+      submitLockRef.current = false;
       return;
     }
 
     if (!yourDeposit || !counterpartyAddress || counterpartyError) {
       toast.error("Please fill in all required fields");
+      submitLockRef.current = false;
       return;
     }
 
@@ -127,10 +171,8 @@ export default function NewDealPage() {
         setCurrentDealId(dealId);
 
         if (title || description) {
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
           try {
-            await fetch(`${apiUrl}/api/deals/backfill/${dealId}`, {
+            await fetch(`${API_URL}/api/deals/backfill/${dealId}`, {
               method: 'POST',
             });
           } catch {
@@ -166,6 +208,7 @@ export default function NewDealPage() {
 
         router.push(`/deals/${dealId}`);
       } else {
+        setSubmitError("Wallet transaction was not submitted");
       }
     } catch (err) {
       console.error("[NewDealPage] Error:", err);
@@ -174,6 +217,7 @@ export default function NewDealPage() {
       toast.error(message);
     } finally {
       setIsProcessing(false);
+      submitLockRef.current = false;
     }
   };
 
@@ -220,39 +264,45 @@ export default function NewDealPage() {
   }, [currentDealId]);
 
   const canSubmit =
-    yourDeposit &&
-    counterpartyAddress &&
+    Boolean(yourDeposit) &&
+    Boolean(counterpartyAddress) &&
     !counterpartyError &&
     isConnected &&
-    hasSigned;
+    hasSigned &&
+    isWalletReady &&
+    !isSubmitting &&
+    !submitLockRef.current;
 
   return (
     <div className="px-4 pb-16 pt-8 md:px-8">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-7xl">
         <Link
           href="/dashboard"
-          className="mb-6 inline-flex items-center gap-2 text-sm text-clinch-text-tertiary transition-colors hover:text-clinch-text-secondary"
+          className="mb-6 inline-flex items-center gap-2 text-sm text-text-tertiary transition-colors hover:text-text-secondary"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to dashboard
         </Link>
 
         <div className="mb-8">
-          <h1 className="text-h1 text-clinch-text-primary">New Agreement</h1>
-          <p className="mt-1 text-sm text-clinch-text-secondary">
+          <div className="font-sans text-[11px] uppercase tracking-[0.12em] text-text-tertiary">
+            Agreement desk
+          </div>
+          <h1 className="mt-2 text-3xl font-semibold text-text-primary">New Agreement</h1>
+          <p className="mt-2 text-sm text-text-secondary">
             Define terms and invite your counterparty
           </p>
         </div>
 
         {!isCorrectNetwork && (
-          <div className="mb-6 flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <div className="mb-6 flex items-center justify-between border border-pending/40 bg-elevated px-4 py-3">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+              <AlertTriangle className="h-4 w-4 text-pending shrink-0" />
               <div>
-                <p className="text-sm font-medium text-amber-400">
+                <p className="text-sm font-medium text-pending">
                   Wrong network
                 </p>
-                <p className="text-xs text-amber-500/80">
+                <p className="text-xs text-text-secondary">
                   You are connected to the wrong network. Switch to Arc Testnet
                   to create a deal.
                 </p>
@@ -261,76 +311,87 @@ export default function NewDealPage() {
             <button
               onClick={switchToArc}
               disabled={isSwitching}
-              className="ml-4 shrink-0 rounded-md bg-amber-500/20 border border-amber-500/40 px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-sharp ml-4 shrink-0 border border-pending/40 px-3 py-1.5 text-xs font-medium text-pending hover:bg-pending/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSwitching ? "Switching..." : "Switch to Arc Testnet"}
             </button>
           </div>
         )}
 
-        <div className="grid gap-8 lg:grid-cols-[1fr,400px]">
-          <div className="rounded-xl border border-clinch-border-default bg-clinch-bg-card p-6">
-            <div className="mb-6">
-              <Label className="mb-2 block text-sm font-medium text-clinch-text-primary">
+        <div className="grid gap-8 lg:grid-cols-[3fr_2fr]">
+          <div className="border border-border-subtle bg-surface p-6">
+            <div className="relative mb-6 grid gap-4 md:grid-cols-[56px_1fr]">
+              <div className="font-mono text-[48px] leading-none text-text-tertiary/20">01</div>
+              <div>
+              <Label className="mb-3 block font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
                 Agreement type
               </Label>
-              <div className="flex gap-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   onClick={() => setDealType("MutualStake")}
                   className={cn(
-                    "flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all",
+                    "border border-border-subtle border-l-[3px] border-l-usdc px-4 py-4 text-left transition-all",
                     dealType === "MutualStake"
-                      ? "border-clinch-accent bg-clinch-accent-muted text-clinch-text-primary"
-                      : "border-clinch-border-default bg-transparent text-clinch-text-secondary hover:border-clinch-border-hover",
+                      ? "border-usdc bg-elevated text-text-primary"
+                      : "bg-transparent text-text-secondary opacity-60 hover:border-border-default",
                   )}
                 >
-                  Mutual Stake
+                  <span className="block text-sm font-semibold text-text-primary">Mutual Stake</span>
+                  <span className="mt-1 block text-xs leading-5 text-text-secondary">
+                    Both parties deposit USDC. Winner receives the locked stake.
+                  </span>
                 </button>
                 <button
                   onClick={() => setDealType("OneSided")}
                   className={cn(
-                    "flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all",
+                    "border border-border-subtle border-l-[3px] border-l-cyan px-4 py-4 text-left transition-all",
                     dealType === "OneSided"
-                      ? "border-clinch-accent bg-clinch-accent-muted text-clinch-text-primary"
-                      : "border-clinch-border-default bg-transparent text-clinch-text-secondary hover:border-clinch-border-hover",
+                      ? "border-usdc bg-elevated text-text-primary"
+                      : "bg-transparent text-text-secondary opacity-60 hover:border-border-default",
                   )}
                 >
-                  One-Sided Escrow
+                  <span className="block text-sm font-semibold text-text-primary">One-Sided Escrow</span>
+                  <span className="mt-1 block text-xs leading-5 text-text-secondary">
+                    Client funds the payment. Worker receives it after confirmation.
+                  </span>
                 </button>
               </div>
-              <p className="mt-2 text-xs text-clinch-text-tertiary">
+              <p className="mt-3 text-xs text-text-tertiary">
                 {dealType === "MutualStake"
                   ? "Both parties deposit USDC. Winner or agreed party receives all."
                   : "Only you deposit. Counterparty confirms delivery."}
               </p>
+              </div>
             </div>
 
-            <div className="my-6 border-t border-clinch-border-default" />
+            <div className="rule-gradient my-8" />
 
-            <div className="space-y-4">
+            <div className="relative grid gap-4 md:grid-cols-[56px_1fr]">
+              <div className="font-mono text-[48px] leading-none text-text-tertiary/20">02</div>
+              <div className="space-y-4">
               <div>
                 <Label
                   htmlFor="title"
-                  className="mb-2 block text-sm font-medium text-clinch-text-primary"
+                  className="mb-2 block font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary"
                 >
                   Title{" "}
-                  <span className="text-clinch-text-tertiary">(optional)</span>
+                  <span className="text-text-tertiary">(optional)</span>
                 </Label>
                 <Input
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Freelance project payment"
-                  className="border-clinch-border-default bg-clinch-bg-input text-clinch-text-primary placeholder:text-clinch-text-tertiary focus:border-clinch-accent focus:ring-1 focus:ring-clinch-accent/30"
+                  className="rounded-none border border-border-subtle bg-elevated font-sans text-text-primary placeholder:text-text-tertiary focus:border-usdc focus:ring-0"
                 />
               </div>
               <div>
                 <Label
                   htmlFor="description"
-                  className="mb-2 block text-sm font-medium text-clinch-text-primary"
+                  className="mb-2 block font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary"
                 >
                   Description{" "}
-                  <span className="text-clinch-text-tertiary">(optional)</span>
+                  <span className="text-text-tertiary">(optional)</span>
                 </Label>
                 <Textarea
                   id="description"
@@ -338,20 +399,23 @@ export default function NewDealPage() {
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Add context about this agreement..."
                   rows={3}
-                  className="border-clinch-border-default bg-clinch-bg-input text-clinch-text-primary placeholder:text-clinch-text-tertiary focus:border-clinch-accent focus:ring-1 focus:ring-clinch-accent/30"
+                  className="rounded-none border border-border-subtle bg-elevated font-sans text-text-primary placeholder:text-text-tertiary focus:border-usdc focus:ring-0"
                 />
+              </div>
               </div>
             </div>
 
-            <div className="my-6 border-t border-clinch-border-default" />
+            <div className="rule-gradient my-8" />
 
-            <div className="space-y-4">
+            <div className="relative grid gap-4 md:grid-cols-[56px_1fr]">
+              <div className="font-mono text-[48px] leading-none text-text-tertiary/20">03</div>
+              <div className="space-y-4">
               <div>
-                <Label className="mb-2 block text-sm font-medium text-clinch-text-primary">
+                <Label className="mb-2 block font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
                   Your wallet
                 </Label>
-                <div className="rounded-lg border border-clinch-border-default bg-clinch-bg-page px-3.5 py-2.5">
-                  <span className="font-mono text-sm text-clinch-text-tertiary">
+                <div className="border border-border-subtle bg-void px-3.5 py-2.5">
+                  <span className="font-mono text-sm text-text-tertiary">
                     {address ? truncateAddress(address) : "Not connected"}
                   </span>
                 </div>
@@ -360,9 +424,9 @@ export default function NewDealPage() {
               <div>
                 <Label
                   htmlFor="yourDeposit"
-                  className="mb-2 block text-sm font-medium text-clinch-text-primary"
+                  className="mb-2 block font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary"
                 >
-                  Your deposit (USDC)
+                  Your deposit
                 </Label>
                 <div className="relative">
                   <Input
@@ -371,32 +435,32 @@ export default function NewDealPage() {
                     value={yourDeposit}
                     onChange={(e) => setYourDeposit(e.target.value)}
                     placeholder="0.00"
-                    className="border-clinch-border-default bg-clinch-bg-input pr-16 text-clinch-text-primary placeholder:text-clinch-text-tertiary focus:border-clinch-accent focus:ring-1 focus:ring-clinch-accent/30"
+                    className="h-14 rounded-none border border-border-subtle bg-elevated pr-20 font-mono text-[32px] text-text-primary placeholder:text-text-tertiary focus:border-usdc focus:ring-0"
                   />
-                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-clinch-text-tertiary">
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 font-mono text-sm text-text-secondary">
                     USDC
                   </span>
                 </div>
                 <div className="mt-1.5 flex items-center justify-between">
-                  <p className="text-xs text-clinch-text-tertiary">
-                    Amount you will lock into the escrow contract
+                  <p className="text-xs text-text-tertiary">
+                    ≈ ${yourDepositNum.toFixed(2)} USD
                   </p>
                   <div className="flex items-center gap-1.5">
                     {isLoadingBalance ? (
-                      <div className="h-3 w-24 animate-pulse rounded bg-clinch-bg-elevated" />
+                      <div className="h-3 w-24 animate-pulse bg-elevated" />
                     ) : (
                       <>
                         <span
                           className={`text-xs font-medium ${
                             hasEnoughBalance
-                              ? "text-clinch-text-tertiary"
-                              : "text-clinch-danger"
+                              ? "text-text-tertiary"
+                              : "text-dispute"
                           }`}
                         >
                           Balance: {formattedBalance.toFixed(2)} USDC
                         </span>
                         {!hasEnoughBalance && yourDepositNum > 0 && (
-                          <span className="text-xs text-clinch-danger">
+                          <span className="text-xs text-dispute">
                             (insufficient)
                           </span>
                         )}
@@ -404,10 +468,40 @@ export default function NewDealPage() {
                     )}
                   </div>
                 </div>
+                <div className="mt-2 border border-border-subtle bg-void px-3 py-2">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="text-text-tertiary">
+                      Unified USDC balance
+                    </span>
+                    {isLoadingUnifiedBalance ? (
+                      <span className="h-3 w-24 animate-pulse bg-elevated" />
+                    ) : unifiedBalanceAmount === null ? (
+                      <span className="text-text-secondary">Syncing</span>
+                    ) : (
+                      <span
+                        className={cn(
+                          'font-medium tabular-nums',
+                          hasEnoughUnifiedBalance
+                            ? 'text-text-primary'
+                            : 'text-pending',
+                        )}
+                      >
+                        {unifiedBalanceAmount.toFixed(2)} USDC
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFundingOpen(true)}
+                    className="mt-1 text-xs font-medium text-usdc hover:text-arc"
+                  >
+                    Add USDC from supported testnets
+                  </button>
+                </div>
                 {!hasEnoughBalance && yourDepositNum > 0 && (
-                  <div className="mt-2 flex items-center gap-2 rounded-md border border-clinch-danger/30 bg-clinch-danger-muted px-3 py-2">
-                    <AlertTriangle className="h-3.5 w-3.5 text-clinch-danger shrink-0" />
-                    <p className="text-xs text-clinch-danger">
+                  <div className="mt-2 flex items-center gap-2 border border-dispute/30 bg-dispute/10 px-3 py-2">
+                    <AlertTriangle className="h-3.5 w-3.5 text-dispute shrink-0" />
+                    <p className="text-xs text-dispute">
                       You need {yourDepositNum.toFixed(2)} USDC but only have{" "}
                       {formattedBalance.toFixed(2)} USDC in your wallet. You can
                       still create the agreement but the deposit step will fail.
@@ -419,7 +513,7 @@ export default function NewDealPage() {
               <div>
                 <Label
                   htmlFor="counterparty"
-                  className="mb-2 block text-sm font-medium text-clinch-text-primary"
+                  className="mb-2 block font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary"
                 >
                   Counterparty wallet address
                 </Label>
@@ -429,13 +523,13 @@ export default function NewDealPage() {
                   onChange={(e) => setCounterpartyAddress(e.target.value)}
                   placeholder="0x..."
                   className={cn(
-                    "border-clinch-border-default bg-clinch-bg-input font-mono text-clinch-text-primary placeholder:text-clinch-text-tertiary focus:border-clinch-accent focus:ring-1 focus:ring-clinch-accent/30",
+                    "rounded-none border border-border-subtle bg-elevated font-mono text-text-primary placeholder:text-text-tertiary focus:border-usdc focus:ring-0",
                     counterpartyError &&
-                      "border-clinch-danger focus:border-clinch-danger focus:ring-clinch-danger/20",
+                      "border-dispute focus:border-dispute focus:ring-dispute/20",
                   )}
                 />
                 {counterpartyError && (
-                  <p className="mt-1 text-xs text-clinch-danger">
+                  <p className="mt-1 text-xs text-dispute">
                     {counterpartyError}
                   </p>
                 )}
@@ -445,9 +539,9 @@ export default function NewDealPage() {
                 <div>
                   <Label
                     htmlFor="theirDeposit"
-                    className="mb-2 block text-sm font-medium text-clinch-text-primary"
+                    className="mb-2 block font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary"
                   >
-                    Their deposit (USDC)
+                    Their deposit
                   </Label>
                   <div className="relative">
                     <Input
@@ -456,21 +550,27 @@ export default function NewDealPage() {
                       value={theirDeposit}
                       onChange={(e) => setTheirDeposit(e.target.value)}
                       placeholder="0.00"
-                      className="border-clinch-border-default bg-clinch-bg-input pr-16 text-clinch-text-primary placeholder:text-clinch-text-tertiary focus:border-clinch-accent focus:ring-1 focus:ring-clinch-accent/30"
+                      className="h-14 rounded-none border border-border-subtle bg-elevated pr-20 font-mono text-[32px] text-text-primary placeholder:text-text-tertiary focus:border-usdc focus:ring-0"
                     />
-                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-clinch-text-tertiary">
+                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 font-mono text-sm text-text-secondary">
                       USDC
                     </span>
                   </div>
+                  <p className="mt-1.5 text-xs text-text-tertiary">
+                    ≈ ${theirDepositNum.toFixed(2)} USD
+                  </p>
                 </div>
               )}
+              </div>
             </div>
 
-            <div className="my-6 border-t border-clinch-border-default" />
+            <div className="rule-gradient my-8" />
 
-            <div className="space-y-4">
+            <div className="relative grid gap-4 md:grid-cols-[56px_1fr]">
+              <div className="font-mono text-[48px] leading-none text-text-tertiary/20">04</div>
+              <div className="space-y-4">
               <div>
-                <Label className="mb-2 block text-sm font-medium text-clinch-text-primary">
+                <Label className="mb-3 block font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
                   Agreement expires in
                 </Label>
                 <div className="flex flex-wrap gap-2">
@@ -479,26 +579,27 @@ export default function NewDealPage() {
                       key={option.value}
                       onClick={() => setExpiryDays(option.value)}
                       className={cn(
-                        "rounded-lg border px-4 py-2 text-sm font-medium transition-all",
+                        "border px-4 py-2 font-mono text-sm transition-all",
                         expiryDays === option.value
-                          ? "border-clinch-accent bg-clinch-accent-muted text-clinch-text-primary"
-                          : "border-clinch-border-default text-clinch-text-secondary hover:border-clinch-border-hover",
+                          ? "border-usdc bg-usdc-dim text-usdc"
+                          : "border-border-subtle text-text-secondary hover:border-border-default",
                       )}
                     >
-                      {option.label}
+                      {option.value === 1 ? "1D" : `${option.value}D`}
                     </button>
                   ))}
                 </div>
               </div>
+              </div>
             </div>
 
-            <div className="my-6 border-t border-clinch-border-default" />
+            <div className="rule-gradient my-8" />
 
             {!isCorrectNetwork ? (
               <Button
                 onClick={switchToArc}
                 disabled={isSwitching}
-                className="w-full bg-amber-500 py-3 text-sm font-medium text-black hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-sharp w-full bg-pending py-4 text-sm font-semibold text-black hover:bg-pending/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSwitching ? (
                   <span className="flex items-center justify-center gap-2">
@@ -512,40 +613,50 @@ export default function NewDealPage() {
                   </span>
                 )}
               </Button>
-            ) : isProcessing ? (
+            ) : walletInitializing ? (
               <Button
                 disabled
-                className="w-full bg-clinch-accent py-3 text-sm font-medium text-white opacity-70 cursor-not-allowed"
+                className="btn-sharp w-full cursor-not-allowed bg-usdc py-4 text-sm font-semibold text-white opacity-70"
               >
                 <span className="flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Creating agreement...
+                  Initializing wallet...
+                </span>
+              </Button>
+            ) : isSubmitting ? (
+              <Button
+                disabled
+                className="btn-sharp w-full cursor-not-allowed bg-usdc py-4 text-sm font-semibold text-white opacity-70"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Awaiting wallet confirmation...
                 </span>
               </Button>
             ) : (
               <Button
                 onClick={handleSubmit}
-                disabled={!canSubmit || isProcessing}
-                className="w-full bg-clinch-accent py-3 text-base font-medium text-white hover:bg-clinch-accent-hover"
+                disabled={!isWalletReady || !canSubmit || isSubmitting || submitLockRef.current}
+                className="btn-sharp w-full bg-usdc py-4 text-[16px] font-semibold text-white hover:bg-cyan"
               >
-                Create agreement
+                {!address || !hasSigned ? "Connect wallet first" : "Create Agreement"}
               </Button>
             )}
             {submitError && (
-              <p className="mt-2 text-center text-xs text-clinch-danger">
+              <p className="mt-2 text-center text-xs text-dispute">
                 {submitError}
               </p>
             )}
-            <p className="mt-2 text-center text-xs text-clinch-text-tertiary">
+            <p className="mt-2 text-center text-xs text-text-tertiary">
               This will prompt a wallet transaction. No funds are deposited yet.
             </p>
           </div>
 
           <div className="lg:sticky lg:top-24 lg:h-fit">
-            <div className="mb-3 text-xs font-medium uppercase tracking-wide text-clinch-text-tertiary">
-              Preview
+            <div className="mb-3 font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
+              Deal Preview
             </div>
-            <div className="rounded-xl border border-clinch-border-default bg-clinch-bg-card p-6">
+            <div className="border border-border-default bg-surface p-6">
               <div className="flex items-center gap-2">
                 <DealStatusBadge status="Active" />
                 <DealTypeChip
@@ -553,15 +664,15 @@ export default function NewDealPage() {
                 />
               </div>
 
-              <h3 className="mt-4 text-[15px] font-medium text-clinch-text-primary">
+              <h3 className="mt-6 text-xl font-semibold text-text-primary">
                 {title || (
-                  <span className="text-clinch-text-tertiary">
-                    Untitled deal
+                  <span className="text-text-tertiary">
+                    New deal
                   </span>
                 )}
               </h3>
 
-              <div className="my-4 border-t border-clinch-border-default" />
+              <div className="rule-gradient my-5" />
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -570,7 +681,7 @@ export default function NewDealPage() {
                       address={address || "0x0000...0000"}
                       showCopy={false}
                     />
-                    <div className="text-xs text-clinch-text-tertiary">
+                    <div className="text-xs text-text-tertiary">
                       You (Creator)
                     </div>
                   </div>
@@ -584,11 +695,11 @@ export default function NewDealPage() {
                         showCopy={false}
                       />
                     ) : (
-                      <span className="font-mono text-sm text-clinch-text-tertiary">
+                      <span className="font-mono text-sm text-text-tertiary">
                         0x...
                       </span>
                     )}
-                    <div className="text-xs text-clinch-text-tertiary">
+                    <div className="text-xs text-text-tertiary">
                       Counterparty
                     </div>
                   </div>
@@ -598,34 +709,39 @@ export default function NewDealPage() {
                 </div>
               </div>
 
-              <div className="my-4 border-t border-clinch-border-default" />
+              <div className="rule-gradient my-5" />
 
-              <div className="space-y-2 text-sm">
+              <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-clinch-text-tertiary">Arbitrator</span>
-                  <span className="text-clinch-text-secondary text-xs">
-                    Platform (0xdd4c…1b61)
+                  <span className="text-text-tertiary">Platform Arbitrator</span>
+                  <span className="font-mono text-xs text-text-secondary">
+                    0xdd4c...1b61
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-clinch-text-tertiary">Expires</span>
-                  <span className="text-clinch-text-secondary">
+                  <span className="text-text-tertiary">Expires</span>
+                  <span className="font-mono text-text-secondary">
                     {formatExpiry(expiryDate).text}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-clinch-text-tertiary">Fee</span>
-                  <span className="text-clinch-text-secondary">2.5%</span>
+                  <span className="text-text-tertiary">Fee</span>
+                  <span className="font-mono text-text-secondary">2.5%</span>
                 </div>
               </div>
 
-              <p className="mt-4 text-center text-xs text-clinch-text-tertiary">
+              <div className="rule-gradient my-6" />
+              <div className="text-center font-display text-[20px] italic text-text-tertiary/40">
+                Clinch
+              </div>
+              <p className="mt-4 text-center font-mono text-[10px] uppercase tracking-[0.12em] text-text-tertiary">
                 Funds are not locked until both parties deposit
               </p>
             </div>
           </div>
         </div>
       </div>
+      <GatewayFundingModal open={fundingOpen} onOpenChange={setFundingOpen} />
     </div>
   );
 }

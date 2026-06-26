@@ -1,14 +1,11 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <style>
-    @media (prefers-color-scheme: light) {
-      .background { fill: #0F1117; }
-      .foreground { fill: #FFFFFF; }
-    }
-    @media (prefers-color-scheme: dark) {
-      .background { fill: #FFFFFF; }
-      .foreground { fill: #0F1117; }
-    }
-  </style>
-  <rect class="background" width="180" height="180" rx="37" />
-  <text x="90" y="100" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" class="foreground">Clinch</text>
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="180" y2="0">
+      <stop offset="0%" stop-color="#00D4FF"/>
+      <stop offset="50%" stop-color="#2775CA"/>
+      <stop offset="100%" stop-color="#7B3FFF"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="37" fill="url(#brand)"/>
+  <path d="M128 58a46 46 0 1 0 0 64" stroke="#0F1117" stroke-width="28" fill="none" stroke-linecap="round"/>
 </svg>

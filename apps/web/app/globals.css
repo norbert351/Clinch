@@ -2,99 +2,129 @@
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(.light *));
 
-/* Clinch Design System */
-:root {
-  /* Background layers (depth) */
-  --clinch-bg-page: #0F1117;
-  --clinch-bg-card: #161B27;
-  --clinch-bg-elevated: #1C2333;
-  --clinch-bg-input: #0F1117;
-  
-  /* Borders */
-  --clinch-border-default: #2A3347;
-  --clinch-border-hover: #374159;
-  --clinch-border-active: #4F6EF7;
-  
-  /* Brand accent (blue) */
-  --clinch-accent: #4F6EF7;
-  --clinch-accent-hover: #6B85F8;
-  --clinch-accent-muted: #1A2456;
-  
-  /* Text */
-  --clinch-text-primary: #F1F5F9;
-  --clinch-text-secondary: #94A3B8;
-  --clinch-text-tertiary: #475569;
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=DM+Sans:ital,opsz,wght@0,9..40,100..900;1,9..40,100..900&family=DM+Mono:wght@400;500&display=swap');
+
+html,
+html.dark {
+  --bg-void: #07080F;
+  --bg-surface: #0C0F1E;
+  --bg-elevated: #121629;
+  --bg-overlay: #181D35;
+  --bg-sidebar: #090C1A;
+  --border-subtle: #1C2240;
+  --border-default: #26305A;
+  --border-strong: #30406E;
+  --border-accent: #2775CA40;
+  --text-primary: #EEF1FF;
+  --text-secondary: #8B9CC8;
+  --text-tertiary: #4A5580;
+  --accent-cyan: #00D4FF;
+  --accent-blue: #2775CA;
+  --accent-violet: #7B3FFF;
+  --accent-cyan-dim: #003D4D;
+  --accent-blue-dim: #1A3A6B;
+  --accent-violet-dim: #2D1A5E;
+  --status-active: #10B981;
+  --status-pending: #F59E0B;
+  --status-dispute: #EF4444;
+  --status-resolve: #6366F1;
+  --status-closed: #4A5580;
+  --gradient-brand: linear-gradient(135deg, #00D4FF 0%, #2775CA 50%, #7B3FFF 100%);
+  --gradient-brand-subtle: linear-gradient(135deg, #00D4FF20 0%, #2775CA15 50%, #7B3FFF20 100%);
+  --gradient-dark: linear-gradient(180deg, #07080F 0%, #0C0F1E 100%);
+}
+
+html.light {
+  --bg-void: #F0F2FF;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F4F6FF;
+  --bg-overlay: #EBEEFF;
+  --bg-sidebar: #E8ECFF;
+  --border-subtle: #D8DEFF;
+  --border-default: #B8C2F0;
+  --border-strong: #8A99E0;
+  --border-accent: #2775CA40;
+  --text-primary: #0D1035;
+  --text-secondary: #3D4875;
+  --text-tertiary: #6B78AA;
+  --accent-cyan: #0099CC;
+  --accent-blue: #1A5FA8;
+  --accent-violet: #6B35E8;
+  --accent-cyan-dim: #E0F7FF;
+  --accent-blue-dim: #E0EBFF;
+  --accent-violet-dim: #EFE8FF;
+  --status-active: #059669;
+  --status-pending: #D97706;
+  --status-dispute: #DC2626;
+  --status-resolve: #4F46E5;
+  --status-closed: #6B78AA;
+  --gradient-brand: linear-gradient(135deg, #00D4FF 0%, #2775CA 50%, #7B3FFF 100%);
+  --gradient-brand-subtle: linear-gradient(135deg, #00D4FF20 0%, #2775CA15 50%, #7B3FFF20 100%);
+  --gradient-dark: linear-gradient(180deg, #F0F2FF 0%, #FFFFFF 100%);
+}
+
+html,
+html.dark,
+html.light {
+  --clinch-bg-page: var(--bg-void);
+  --clinch-bg-card: var(--bg-surface);
+  --clinch-bg-elevated: var(--bg-elevated);
+  --clinch-bg-input: var(--bg-elevated);
+  --clinch-border-default: var(--border-subtle);
+  --clinch-border-hover: var(--border-default);
+  --clinch-border-active: var(--border-strong);
+  --clinch-accent: var(--accent-blue);
+  --clinch-accent-hover: var(--accent-cyan);
+  --clinch-accent-muted: var(--accent-blue-dim);
+  --clinch-text-primary: var(--text-primary);
+  --clinch-text-secondary: var(--text-secondary);
+  --clinch-text-tertiary: var(--text-tertiary);
   --clinch-text-inverse: #FFFFFF;
-  
-  /* Status colors */
-  --clinch-success: #22C55E;
-  --clinch-success-muted: #0F2419;
-  --clinch-warning: #F59E0B;
-  --clinch-warning-muted: #221A07;
-  --clinch-danger: #EF4444;
-  --clinch-danger-muted: #200D0D;
-  --clinch-neutral: #64748B;
-  --clinch-neutral-muted: #171B24;
-  
-  /* Deal status badge colors */
-  --clinch-status-active-text: #4F6EF7;
-  --clinch-status-active-bg: #1A2456;
-  --clinch-status-active-border: #2A3A7A;
-  
-  --clinch-status-disputed-text: #F59E0B;
-  --clinch-status-disputed-bg: #221A07;
-  --clinch-status-disputed-border: #4A3510;
-  
-  --clinch-status-resolved-text: #22C55E;
-  --clinch-status-resolved-bg: #0F2419;
-  --clinch-status-resolved-border: #1A4028;
-  
-  --clinch-status-cancelled-text: #64748B;
-  --clinch-status-cancelled-bg: #171B24;
-  --clinch-status-cancelled-border: #2A3347;
-  
-  --clinch-status-pending-text: #94A3B8;
-  --clinch-status-pending-bg: #1C2333;
-  --clinch-status-pending-border: #2A3347;
-  
-  /* Map to standard tokens */
-  --background: var(--clinch-bg-page);
-  --foreground: var(--clinch-text-primary);
-  --card: var(--clinch-bg-card);
-  --card-foreground: var(--clinch-text-primary);
-  --popover: var(--clinch-bg-elevated);
-  --popover-foreground: var(--clinch-text-primary);
-  --primary: var(--clinch-accent);
-  --primary-foreground: var(--clinch-text-inverse);
-  --secondary: var(--clinch-bg-elevated);
-  --secondary-foreground: var(--clinch-text-secondary);
-  --muted: var(--clinch-bg-elevated);
-  --muted-foreground: var(--clinch-text-tertiary);
-  --accent: var(--clinch-accent);
-  --accent-foreground: var(--clinch-text-inverse);
-  --destructive: var(--clinch-danger);
-  --destructive-foreground: var(--clinch-text-inverse);
-  --border: var(--clinch-border-default);
-  --input: var(--clinch-bg-input);
-  --ring: var(--clinch-accent);
-  --radius: 0.625rem;
-  
-  /* Sidebar */
-  --sidebar: var(--clinch-bg-page);
-  --sidebar-foreground: var(--clinch-text-primary);
-  --sidebar-primary: var(--clinch-accent);
-  --sidebar-primary-foreground: var(--clinch-text-inverse);
-  --sidebar-accent: var(--clinch-accent-muted);
-  --sidebar-accent-foreground: var(--clinch-text-primary);
-  --sidebar-border: var(--clinch-border-default);
-  --sidebar-ring: var(--clinch-accent);
+  --clinch-success: var(--status-active);
+  --clinch-success-muted: color-mix(in srgb, var(--status-active) 15%, transparent);
+  --clinch-warning: var(--status-pending);
+  --clinch-warning-muted: color-mix(in srgb, var(--status-pending) 15%, transparent);
+  --clinch-danger: var(--status-dispute);
+  --clinch-danger-muted: color-mix(in srgb, var(--status-dispute) 15%, transparent);
+  --clinch-neutral: var(--status-closed);
+  --clinch-neutral-muted: color-mix(in srgb, var(--status-closed) 15%, transparent);
+  --background: var(--bg-void);
+  --foreground: var(--text-primary);
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-overlay);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--accent-blue);
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--bg-elevated);
+  --secondary-foreground: var(--text-secondary);
+  --muted: var(--bg-elevated);
+  --muted-foreground: var(--text-tertiary);
+  --accent: var(--accent-blue);
+  --accent-foreground: #FFFFFF;
+  --destructive: var(--status-dispute);
+  --destructive-foreground: #FFFFFF;
+  --border: var(--border-subtle);
+  --input: var(--bg-elevated);
+  --ring: var(--accent-blue);
+  --radius: 0;
+  --sidebar: var(--bg-sidebar);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--accent-blue);
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: var(--bg-elevated);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border-subtle);
+  --sidebar-ring: var(--accent-blue);
 }
 
 @theme inline {
-  --font-sans: 'Inter', 'Inter Fallback', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
-  
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-sans: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', 'Courier New', monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -114,40 +144,44 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  
-  /* Clinch custom colors for Tailwind */
+  --color-void: var(--bg-void);
+  --color-surface: var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-overlay: var(--bg-overlay);
+  --color-sidebar: var(--bg-sidebar);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-cyan: var(--accent-cyan);
+  --color-cyan-dim: var(--accent-cyan-dim);
+  --color-usdc: var(--accent-blue);
+  --color-usdc-dim: var(--accent-blue-dim);
+  --color-arc: var(--accent-cyan);
+  --color-arc-dim: var(--accent-cyan-dim);
+  --color-violet: var(--accent-violet);
+  --color-violet-dim: var(--accent-violet-dim);
+  --color-active: var(--status-active);
+  --color-pending: var(--status-pending);
+  --color-dispute: var(--status-dispute);
+  --color-resolve: var(--status-resolve);
+  --color-closed: var(--status-closed);
   --color-clinch-bg-page: var(--clinch-bg-page);
   --color-clinch-bg-card: var(--clinch-bg-card);
   --color-clinch-bg-elevated: var(--clinch-bg-elevated);
   --color-clinch-bg-input: var(--clinch-bg-input);
-  
   --color-clinch-border-default: var(--clinch-border-default);
   --color-clinch-border-hover: var(--clinch-border-hover);
   --color-clinch-border-active: var(--clinch-border-active);
-  
   --color-clinch-accent: var(--clinch-accent);
   --color-clinch-accent-hover: var(--clinch-accent-hover);
   --color-clinch-accent-muted: var(--clinch-accent-muted);
-  
   --color-clinch-text-primary: var(--clinch-text-primary);
   --color-clinch-text-secondary: var(--clinch-text-secondary);
   --color-clinch-text-tertiary: var(--clinch-text-tertiary);
   --color-clinch-text-inverse: var(--clinch-text-inverse);
-  
   --color-clinch-success: var(--clinch-success);
   --color-clinch-success-muted: var(--clinch-success-muted);
   --color-clinch-warning: var(--clinch-warning);
@@ -156,86 +190,261 @@
   --color-clinch-danger-muted: var(--clinch-danger-muted);
   --color-clinch-neutral: var(--clinch-neutral);
   --color-clinch-neutral-muted: var(--clinch-neutral-muted);
-  
-  --color-clinch-status-active-text: var(--clinch-status-active-text);
-  --color-clinch-status-active-bg: var(--clinch-status-active-bg);
-  --color-clinch-status-active-border: var(--clinch-status-active-border);
-  
-  --color-clinch-status-disputed-text: var(--clinch-status-disputed-text);
-  --color-clinch-status-disputed-bg: var(--clinch-status-disputed-bg);
-  --color-clinch-status-disputed-border: var(--clinch-status-disputed-border);
-  
-  --color-clinch-status-resolved-text: var(--clinch-status-resolved-text);
-  --color-clinch-status-resolved-bg: var(--clinch-status-resolved-bg);
-  --color-clinch-status-resolved-border: var(--clinch-status-resolved-border);
-  
-  --color-clinch-status-cancelled-text: var(--clinch-status-cancelled-text);
-  --color-clinch-status-cancelled-bg: var(--clinch-status-cancelled-bg);
-  --color-clinch-status-cancelled-border: var(--clinch-status-cancelled-border);
-  
-  --color-clinch-status-pending-text: var(--clinch-status-pending-text);
-  --color-clinch-status-pending-bg: var(--clinch-status-pending-bg);
-  --color-clinch-status-pending-border: var(--clinch-status-pending-border);
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--bg-void);
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+button,
+input,
+textarea,
+select {
+  border-radius: 0;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-void);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+.gradient-brand {
+  background: var(--gradient-brand);
+}
+
+.gradient-brand-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-border {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+    var(--gradient-brand) border-box;
+}
+
+.grid-texture {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--border-subtle) 42%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--border-subtle) 42%, transparent) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.rule-gradient {
+  height: 1px;
+  border: none;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--border-default) 30%,
+    var(--border-default) 70%,
+    transparent
+  );
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding-left: 8px;
+  border-left: 2px solid currentColor;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.btn-sharp {
+  border-radius: 0;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.btn-sharp:hover {
+  transform: scale(0.97);
+}
+
+.btn-sharp:active {
+  transform: scale(0.94);
+}
+
+.amount-display {
+  color: var(--text-primary);
+  font-family: 'DM Mono', monospace;
+  letter-spacing: -0.02em;
+}
+
+.premium-panel {
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.premium-button {
+  border-radius: 0;
+  background: var(--accent-blue);
+  color: white;
+}
+
+.glow-blue {
+  box-shadow: 0 0 20px #2775CA30, 0 0 40px #2775CA15;
+}
+
+.glow-cyan {
+  box-shadow: 0 0 20px #00D4FF30, 0 0 40px #00D4FF15;
+}
+
+.hero-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+.stroke-blue {
+  -webkit-text-stroke: 1.5px #2775CA;
+  color: transparent;
+}
+
+.text-display {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: clamp(4.5rem, 8vw, 5rem);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.text-h1 {
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.text-h2 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.text-h3 {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.text-h4 {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.text-body {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.text-small {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.text-micro {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.text-mono {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.status-pulse {
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-active) 45%, transparent);
+  animation: status-pulse 2.4s infinite;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.3s ease forwards;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
-  body {
-    @apply bg-background text-foreground;
+
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
   }
 }
 
-/* Clinch Typography Classes */
-@layer utilities {
-  .text-display {
-    @apply text-5xl font-bold tracking-tight;
-    letter-spacing: -0.03em;
+@keyframes status-pulse {
+  70% {
+    box-shadow: 0 0 0 9px color-mix(in srgb, var(--status-active) 0%, transparent);
   }
-  
-  .text-h1 {
-    @apply text-4xl font-semibold;
-    letter-spacing: -0.02em;
+
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-active) 0%, transparent);
   }
-  
-  .text-h2 {
-    @apply text-3xl font-semibold;
-    letter-spacing: -0.02em;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
   }
-  
-  .text-h3 {
-    @apply text-xl font-semibold;
-  }
-  
-  .text-h4 {
-    @apply text-base font-semibold;
-  }
-  
-  .text-body-lg {
-    @apply text-base font-normal leading-relaxed;
-  }
-  
-  .text-body {
-    @apply text-sm font-normal;
-    line-height: 1.6;
-  }
-  
-  .text-small {
-    @apply text-[13px] font-normal;
-  }
-  
-  .text-micro {
-    @apply text-[11px] font-medium uppercase;
-    letter-spacing: 0.05em;
-  }
-  
-  .text-mono {
-    @apply font-mono text-[13px];
-  }
-  
-  /* Tabular nums for USDC amounts */
-  .tabular-nums {
-    font-variant-numeric: tabular-nums;
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

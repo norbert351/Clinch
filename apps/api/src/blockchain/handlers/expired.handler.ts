@@ -3,6 +3,7 @@ import { contractEvents, deals } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { emitDealUpdateToUsers } from '../../socket/gateway';
 import { sendNotification } from '../../modules/notifications/notifications.service';
+import { postTimelineMessage } from './timeline';
 
 export async function handleExpired(
   event: {
@@ -46,4 +47,5 @@ export async function handleExpired(
   });
 
   emitDealUpdateToUsers(Number(event.dealId), event.partyA, event.partyB, { type: 'Expired', event });
+  await postTimelineMessage(Number(event.dealId), 'Deal expired. Conversation archived.');
 }

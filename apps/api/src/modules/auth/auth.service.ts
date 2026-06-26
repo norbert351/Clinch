@@ -11,6 +11,11 @@ export interface JwtPayload {
   wallet: string;
 }
 
+export interface UpsertUserResult {
+  user: User;
+  created: boolean;
+}
+
 const nonceStore = new Map<string, { nonce: string; expiresAt: number }>();
 
 const NONCE_EXPIRY_MS = 5 * 60 * 1000;
@@ -46,18 +51,18 @@ export async function verifySiwe(
     });
 
     if (!success || !fields) {
-      console.error('SIWE verification failed:', error);
+      console.warn('SIWE verification failed');
       return null;
     }
 
     return { address: fields.address };
   } catch (err) {
-    console.error('SIWE verification error:', err);
+    console.warn('SIWE verification error');
     return null;
   }
 }
 
-export async function upsertUser(walletAddress: string): Promise<User> {
+export async function upsertUser(walletAddress: string): Promise<UpsertUserResult> {
   const lowerAddress = walletAddress.toLowerCase();
   
   const existing = await db.query.users.findFirst({
@@ -65,7 +70,7 @@ export async function upsertUser(walletAddress: string): Promise<User> {
   });
 
   if (existing) {
-    return existing;
+    return { user: existing, created: false };
   }
 
   const [newUser] = await db
@@ -73,18 +78,27 @@ export async function upsertUser(walletAddress: string): Promise<User> {
     .values({ walletAddress: lowerAddress })
     .returning();
 
-  return newUser;
+  return { user: newUser, created: true };
 }
 
 export function signJwt(payload: JwtPayload): string {
-  return jwt.sign(payload, config.auth.jwtSecret, {
+  return jwt.sign({ wallet: payload.wallet.toLowerCase() }, config.auth.jwtSecret, {
+    algorithm: 'HS256',
     expiresIn: config.auth.expiresIn,
   });
 }
 
 export function verifyJwt(token: string): JwtPayload | null {
   try {
-    return jwt.verify(token, config.auth.jwtSecret) as JwtPayload;
+    const payload = jwt.verify(token, config.auth.jwtSecret, {
+      algorithms: ['HS256'],
+    }) as JwtPayload;
+
+    if (!payload.wallet) {
+      return null;
+    }
+
+    return { wallet: payload.wallet.toLowerCase() };
   } catch {
     return null;
   }

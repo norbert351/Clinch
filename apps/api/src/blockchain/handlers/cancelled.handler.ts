@@ -3,6 +3,7 @@ import { contractEvents, deals } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { emitDealUpdateToUsers } from '../../socket/gateway';
 import { sendNotification } from '../../modules/notifications/notifications.service';
+import { postTimelineMessage } from './timeline';
 
 export async function handleCancelled(
   event: {
@@ -46,4 +47,5 @@ export async function handleCancelled(
   });
 
   emitDealUpdateToUsers(Number(event.dealId), event.partyA, event.partyB, { type: 'Cancelled', event });
+  await postTimelineMessage(Number(event.dealId), 'Deal cancelled. Conversation archived.');
 }

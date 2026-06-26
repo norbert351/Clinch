@@ -7,6 +7,7 @@ import { Logo, EmptyState, DealStatusBadge, DealTypeChip, USDCAmount, WalletAddr
 import { useWallet } from '@/components/wallet-context';
 import { useDealByInvite } from '@/hooks/useDeals';
 import { formatUSDC, formatExpiry, truncateAddress } from '@/lib/format';
+import { recordInviteAccepted } from '@/lib/api';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -33,10 +34,13 @@ function InvitePageContent({ token }: { token: string }) {
     }
   }, [deal, address, hasSigned, mounted, router]);
 
-  const handleJoinDeal = () => {
+  const handleJoinDeal = async () => {
     if (!hasSigned) {
       signMessage();
     } else {
+      if (deal && address?.toLowerCase() === deal.partyB.toLowerCase()) {
+        await recordInviteAccepted(deal.onChainId, token).catch(() => {});
+      }
       router.push(`/deals/${deal?.onChainId}`);
     }
   };
@@ -205,11 +209,12 @@ function InvitePageContent({ token }: { token: string }) {
                 ? `You have been hired for this job. No deposit required — complete work to receive payment.`
                 : 'You can now join this deal'}
             </p>
-            <Link href={`/deals/${deal.onChainId}`}>
-              <Button className="w-full bg-clinch-accent py-3 text-white hover:bg-clinch-accent-hover">
-                {isOneSidedDeal && isCounterparty ? 'View Job Details' : 'View Deal'}
-              </Button>
-            </Link>
+            <Button
+              onClick={handleJoinDeal}
+              className="w-full bg-clinch-accent py-3 text-white hover:bg-clinch-accent-hover"
+            >
+              {isOneSidedDeal && isCounterparty ? 'View Job Details' : 'View Deal'}
+            </Button>
           </>
         )}
 

@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { adminMiddleware, adminRateLimiter } from '../../middleware/admin.middleware';
+import { jwtMiddleware } from '../auth/jwt.middleware';
 import {
   getUserDashboardHandler,
   getGlobalDashboardHandler,
@@ -6,7 +8,7 @@ import {
 
 const router = Router();
 
-router.get('/me', getUserDashboardHandler);
-router.get('/global', getGlobalDashboardHandler);
+router.get('/me', jwtMiddleware, getUserDashboardHandler);
+router.get('/global', jwtMiddleware, adminMiddleware, adminRateLimiter, getGlobalDashboardHandler);
 
 export default router;

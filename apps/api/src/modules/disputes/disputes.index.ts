@@ -4,17 +4,28 @@ import {
   getPendingDisputesHandler,
   raiseDisputeHandler,
   getDisputeByDealHandler,
+  getDisputeAIAnalysisHandler,
+  generateDisputeAIAnalysisHandler,
+  getDisputeContextHandler,
+  generateDisputeContextHandler,
 } from './disputes.router';
 import { updateDisputeRuling, getDisputesForArbitrator } from './disputes.service';
 import { getDealByOnChainId } from '../deals/deals.service';
 import { successResponse, errorResponse } from '../../middleware/error.middleware';
+import { config } from '../../config/env';
 
-const PLATFORM_ARBITRATOR = '0xdd4c983Cd57Ee7A6F8Ef0BbB8715B19bdF5C1b61';
+const PLATFORM_ARBITRATOR = config.admin.arbitrator;
 
 const router = Router();
 
 router.get('/pending', jwtMiddleware, getPendingDisputesHandler);
 router.get('/deal/:onChainId', jwtMiddleware, getDisputeByDealHandler);
+router.get('/:onChainId/ai-analysis', jwtMiddleware, getDisputeAIAnalysisHandler);
+router.post('/:onChainId/ai-analysis', jwtMiddleware, generateDisputeAIAnalysisHandler);
+router.get('/:onChainId/ai', jwtMiddleware, getDisputeAIAnalysisHandler);
+router.post('/:onChainId/ai', jwtMiddleware, generateDisputeAIAnalysisHandler);
+router.get('/:onChainId/ai-context', jwtMiddleware, getDisputeContextHandler);
+router.post('/:onChainId/ai-context', jwtMiddleware, generateDisputeContextHandler);
 router.post('/:onChainId/raise', jwtMiddleware, raiseDisputeHandler);
 
 export async function ruleDisputeHandler(

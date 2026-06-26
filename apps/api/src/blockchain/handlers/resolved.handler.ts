@@ -1,9 +1,12 @@
 import { db } from '../../config/db';
 import { contractEvents, deals, disputes } from '../../db/schema';
 import { eq } from 'drizzle-orm';
-import { emitDealUpdate, emitDealUpdateToUsers } from '../../socket/gateway';
+import { emitDealUpdateToUsers } from '../../socket/gateway';
 import { sendNotification, notifyArbitrator } from '../../modules/notifications/notifications.service';
 import { config } from '../../config/env';
+import { generateSettlementSummary } from '../../modules/ai/ai.service';
+import { postTimelineMessage } from './timeline';
+import { trackAnalyticsEvent } from '../../modules/analytics/analytics.service';
 
 const PLATFORM_FEE_BPS = config.fees.platformFee;
 const PLATFORM_WALLET = config.admin.wallet;
@@ -115,4 +118,28 @@ export async function handleResolved(
     totalPot,
     winnerAddress,
   });
+
+  await postTimelineMessage(
+    onChainId,
+    `Funds distributed. Outcome: ${winnerOutcome}. Winner payout: ${winnerPayout.toFixed(2)} USDC.`,
+  );
+
+  trackAnalyticsEvent({
+    type: 'DEAL_RESOLVED',
+    wallet: winnerAddress,
+    dealId: onChainId,
+    amount: totalPot,
+    metadata: {
+      outcome: winnerOutcome,
+      winnerPayout,
+      platformFee: platformFeeNum,
+      txHash,
+    },
+  });
+
+  setTimeout(() => {
+    void generateSettlementSummary(onChainId).catch((err) => {
+      console.warn('[Resolved] AI settlement summary failed:', err);
+    });
+  }, 100);
 }

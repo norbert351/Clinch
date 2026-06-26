@@ -16,10 +16,15 @@ type NotificationType =
   | 'ruling-deadline'
   | 'deal-settled'
   | 'deal-expired'
+  | 'new-message'
   | 'arbitrator-notification';
 
 const PLATFORM_ARBITRATOR = config.admin.arbitrator;
 const resendClient = config.email.apiKey ? new Resend(config.email.apiKey) : null;
+
+type NotificationContext = Partial<Deal> & {
+  metadata?: Record<string, unknown>;
+};
 
 interface NotificationPayload {
   title: string;
@@ -27,7 +32,7 @@ interface NotificationPayload {
   metadata?: Record<string, unknown>;
 }
 
-function getNotificationPayload(type: NotificationType, dealContext?: Partial<Deal>): NotificationPayload {
+function getNotificationPayload(type: NotificationType, dealContext?: NotificationContext): NotificationPayload {
   const payloads: Record<NotificationType, NotificationPayload> = {
     'deal-invite': {
       title: 'You\'ve been invited to a deal',
@@ -69,6 +74,15 @@ function getNotificationPayload(type: NotificationType, dealContext?: Partial<De
       message: 'Your deal has expired without completion.',
       metadata: { onChainId: dealContext?.onChainId },
     },
+    'new-message': {
+      title: 'New deal message',
+      message: 'A participant sent a message on your deal.',
+      metadata: {
+        onChainId: dealContext?.onChainId,
+        href: `/deals/${dealContext?.onChainId}`,
+        ...(dealContext?.metadata || {}),
+      },
+    },
     'arbitrator-notification': {
       title: 'New dispute to resolve',
       message: 'A dispute requires your arbitration. Please review and make a ruling.',
@@ -86,7 +100,7 @@ async function getUserByWallet(walletAddress: string): Promise<typeof users.$inf
   return user;
 }
 
-const templateMap: Record<NotificationType, (deal: Partial<Deal>) => { subject: string; html: string }> = {
+const templateMap: Partial<Record<NotificationType, (deal: NotificationContext) => { subject: string; html: string }>> = {
   'deal-invite': templates.dealInviteTemplate,
   'deal-accepted': templates.dealAcceptedTemplate,
   'outcome-submitted': templates.outcomeSubmittedTemplate,
@@ -95,13 +109,14 @@ const templateMap: Record<NotificationType, (deal: Partial<Deal>) => { subject: 
   'ruling-deadline': templates.rulingDeadlineTemplate,
   'deal-settled': templates.dealSettledTemplate,
   'deal-expired': templates.dealExpiredTemplate,
+  'new-message': templates.newMessageTemplate,
   'arbitrator-notification': templates.disputeOpenedTemplate,
 };
 
 export async function sendNotification(
   type: NotificationType,
   walletAddress: string,
-  dealContext?: Partial<Deal>
+  dealContext?: NotificationContext
 ): Promise<void> {
   try {
     const payload = getNotificationPayload(type, dealContext);
@@ -160,6 +175,10 @@ export async function notifyArbitrator(
   type: NotificationType,
   dealContext?: Partial<Deal>
 ): Promise<void> {
+  if (!PLATFORM_ARBITRATOR) {
+    console.warn('[Notification] PLATFORM_ARBITRATOR is not configured');
+    return;
+  }
   await sendNotification(type, PLATFORM_ARBITRATOR, dealContext);
 }
 

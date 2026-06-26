@@ -1,9 +1,9 @@
 import { config } from '../config/env';
-import { getPublicClient, getWsClient, getCurrentRpc, getCurrentWsRpc } from '../config/rpc';
+import { getPublicClient, getWsClient } from '../config/rpc';
 
 export { config };
 
-export const PLATFORM_ARBITRATOR = process.env.PLATFORM_ARBITRATOR || '0xdd4c983Cd57Ee7A6F8Ef0BbB8715B19bdF5C1b61';
+export const PLATFORM_ARBITRATOR = config.admin.arbitrator;
 
 export const CONTRACT_ABI = [
   {

@@ -11,6 +11,8 @@ import { updateUser, getNotifications } from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import { timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { GatewayFundingModal, UnifiedBalanceCard } from '@/components/clinch';
+import { useUnifiedBalance } from '@/hooks/useUnifiedBalance';
 
 export default function ProfilePage() {
   const { address, disconnect, user, isConnected, hasSigned } = useWallet();
@@ -20,6 +22,11 @@ export default function ProfilePage() {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [saved, setSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [fundingOpen, setFundingOpen] = useState(false);
+  const { data: unifiedBalance, isLoading: isBalanceLoading } = useUnifiedBalance(
+    !!address && hasSigned,
+    address,
+  );
 
   useEffect(() => {
     if (user) {
@@ -63,17 +70,28 @@ export default function ProfilePage() {
 
   return (
     <div className="px-4 pb-16 pt-8 md:px-8">
-      <div className="mx-auto max-w-2xl">
+      <div className="mx-auto max-w-lg">
         <div className="mb-8">
-          <h1 className="text-h1 text-clinch-text-primary">Profile</h1>
+          <div className="font-sans text-[11px] uppercase tracking-[0.12em] text-text-tertiary">
+            Account
+          </div>
+          <h1 className="mt-2 text-3xl font-semibold text-text-primary">Profile</h1>
         </div>
 
-        <div className="mb-6 rounded-xl border border-clinch-border-default bg-clinch-bg-card p-6">
-          <h3 className="mb-4 text-h4 text-clinch-text-primary">Wallet</h3>
+        <div className="mb-6">
+          <UnifiedBalanceCard
+            balance={unifiedBalance}
+            isLoading={isBalanceLoading}
+            onFund={() => setFundingOpen(true)}
+          />
+        </div>
+
+        <div className="mb-6 border border-border-subtle bg-surface p-6">
+          <h3 className="mb-4 font-sans text-[11px] uppercase tracking-[0.12em] text-text-tertiary">Your Wallet</h3>
 
           <div className="flex items-center gap-3">
-            <div className="flex-1 rounded-lg border border-clinch-border-default bg-clinch-bg-page px-4 py-3">
-              <span className="font-mono text-sm text-clinch-text-primary">
+            <div className="min-w-0 flex-1 border border-border-subtle bg-elevated px-4 py-3">
+              <span className="font-mono text-sm text-text-primary">
                 {address || 'Not connected'}
               </span>
             </div>
@@ -81,10 +99,10 @@ export default function ProfilePage() {
               variant="ghost"
               onClick={handleCopyAddress}
               disabled={!address}
-              className="h-11 w-11 border-clinch-border-default p-0 text-clinch-text-tertiary hover:text-clinch-text-primary"
+              className="h-11 w-11 border border-border-subtle p-0 text-text-tertiary hover:text-text-primary"
             >
               {copied ? (
-                <Check className="h-4 w-4 text-clinch-success" />
+                <Check className="h-4 w-4 text-active" />
               ) : (
                 <Copy className="h-4 w-4" />
               )}
@@ -93,14 +111,14 @@ export default function ProfilePage() {
 
           <div className="mt-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-clinch-success" />
-              <span className="text-sm text-clinch-success">
+              <span className="h-2 w-2 rounded-full bg-active pulse-dot" />
+              <span className="font-mono text-[12px] text-active">
                 Connected to Arc Network
               </span>
             </div>
             <button
               onClick={disconnect}
-              className="flex items-center gap-2 text-sm text-clinch-text-tertiary transition-colors hover:text-clinch-danger"
+              className="flex items-center gap-2 text-xs text-text-tertiary transition-colors hover:text-dispute"
             >
               <LogOut className="h-4 w-4" />
               Disconnect
@@ -108,14 +126,16 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="mb-6 rounded-xl border border-clinch-border-default bg-clinch-bg-card p-6">
-          <h3 className="mb-4 text-h4 text-clinch-text-primary">
+        <div className="rule-gradient mb-6" />
+
+        <div className="mb-6 border border-border-subtle bg-surface p-6">
+          <h3 className="mb-4 text-lg font-semibold text-text-primary">
             Notification preferences
           </h3>
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="email" className="mb-2 block text-sm font-medium text-clinch-text-primary">
+              <Label htmlFor="email" className="mb-2 block font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
                 Email address
               </Label>
               <Input
@@ -124,31 +144,31 @@ export default function ProfilePage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                className="border-clinch-border-default bg-clinch-bg-input text-clinch-text-primary placeholder:text-clinch-text-tertiary focus:border-clinch-accent focus:ring-1 focus:ring-clinch-accent/30"
+                className="rounded-none border border-border-subtle bg-elevated text-text-primary placeholder:text-text-tertiary focus:border-usdc focus:ring-0"
               />
             </div>
 
             <div>
-              <Label htmlFor="displayName" className="mb-2 block text-sm font-medium text-clinch-text-primary">
-                Display name <span className="text-clinch-text-tertiary">(optional)</span>
+              <Label htmlFor="displayName" className="mb-2 block font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
+                Display name <span className="text-text-tertiary">(optional)</span>
               </Label>
               <Input
                 id="displayName"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="How you want to be identified"
-                className="border-clinch-border-default bg-clinch-bg-input text-clinch-text-primary placeholder:text-clinch-text-tertiary focus:border-clinch-accent focus:ring-1 focus:ring-clinch-accent/30"
+                className="rounded-none border border-border-subtle bg-elevated text-text-primary placeholder:text-text-tertiary focus:border-usdc focus:ring-0"
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-clinch-border-default bg-clinch-bg-page px-4 py-3">
+            <div className="flex items-center justify-between border border-border-subtle bg-void px-4 py-3">
               <div className="flex items-center gap-3">
-                <Mail className="h-4 w-4 text-clinch-text-tertiary" />
+                <Mail className="h-4 w-4 text-text-tertiary" />
                 <div>
-                  <p className="text-sm font-medium text-clinch-text-primary">
+                  <p className="text-sm font-medium text-text-primary">
                     Email notifications
                   </p>
-                  <p className="text-xs text-clinch-text-tertiary">
+                  <p className="text-xs text-text-tertiary">
                     Receive deal updates via email
                   </p>
                 </div>
@@ -158,8 +178,8 @@ export default function ProfilePage() {
                 className={cn(
                   'relative h-6 w-11 rounded-full transition-colors',
                   emailNotifications
-                    ? 'bg-clinch-accent'
-                    : 'bg-clinch-bg-elevated'
+                    ? 'bg-usdc'
+                    : 'bg-elevated'
                 )}
                 role="switch"
                 aria-checked={emailNotifications}
@@ -176,7 +196,7 @@ export default function ProfilePage() {
             <Button
               onClick={handleSave}
               disabled={isLoading}
-              className="bg-clinch-accent text-white hover:bg-clinch-accent-hover"
+              className="btn-sharp bg-usdc text-white hover:bg-cyan"
             >
               {isLoading ? (
                 <>
@@ -190,7 +210,7 @@ export default function ProfilePage() {
               )}
             </Button>
 
-            <p className="text-xs text-clinch-text-tertiary">
+            <p className="text-xs text-text-tertiary">
               Your email is only used to send deal notifications. It is never
               stored on-chain.
             </p>
@@ -199,6 +219,7 @@ export default function ProfilePage() {
 
         <RecentNotifications />
       </div>
+      <GatewayFundingModal open={fundingOpen} onOpenChange={setFundingOpen} />
     </div>
   );
 }
@@ -212,13 +233,13 @@ function RecentNotifications() {
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-clinch-border-default bg-clinch-bg-card p-6">
-        <h3 className="mb-4 text-h4 text-clinch-text-primary">
+      <div className="border border-border-subtle bg-surface p-6">
+        <h3 className="mb-4 text-h4 text-text-primary">
           Recent notifications
         </h3>
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-lg bg-clinch-bg-elevated" />
+            <div key={i} className="h-16 animate-pulse bg-elevated" />
           ))}
         </div>
       </div>
@@ -226,15 +247,15 @@ function RecentNotifications() {
   }
 
   return (
-    <div className="rounded-xl border border-clinch-border-default bg-clinch-bg-card p-6">
-      <h3 className="mb-4 text-h4 text-clinch-text-primary">
+    <div className="border border-border-subtle bg-surface p-6">
+      <h3 className="mb-4 text-h4 text-text-primary">
         Recent notifications
       </h3>
 
       {notifications.length === 0 ? (
         <div className="py-8 text-center">
-          <Bell className="mx-auto h-8 w-8 text-clinch-text-tertiary" />
-          <p className="mt-2 text-sm text-clinch-text-tertiary">
+          <div className="font-mono text-[48px] leading-none text-text-tertiary">—</div>
+          <p className="mt-2 text-sm text-text-tertiary">
             No notifications yet
           </p>
         </div>
@@ -244,21 +265,22 @@ function RecentNotifications() {
             <div
               key={n.id}
               className={cn(
-                'rounded-lg border border-clinch-border-default px-4 py-3',
-                !n.read && 'border-l-2 border-l-clinch-accent bg-clinch-accent-muted/10'
+                'flex items-start gap-3 border border-border-subtle px-4 py-3',
+                !n.read && 'border-l-2 border-l-usdc bg-usdc-dim/10'
               )}
             >
-              <div className="flex items-start justify-between">
+              <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', n.read ? 'bg-text-tertiary' : 'bg-cyan')} />
+              <div className="flex min-w-0 flex-1 items-start justify-between">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-clinch-text-primary">
+                  <p className="text-sm font-medium text-text-primary">
                     {n.title || 'Deal update'}
                   </p>
-                  <p className="mt-0.5 text-xs text-clinch-text-tertiary">
+                  <p className="mt-0.5 text-xs text-text-tertiary">
                     {n.message}
                   </p>
                 </div>
                 {n.sentAt && (
-                  <span className="ml-3 shrink-0 text-[10px] text-clinch-text-tertiary">
+                  <span className="ml-3 shrink-0 text-[10px] text-text-tertiary">
                     {timeAgo(new Date(n.sentAt))}
                   </span>
                 )}
@@ -270,3 +292,4 @@ function RecentNotifications() {
     </div>
   );
 }
+

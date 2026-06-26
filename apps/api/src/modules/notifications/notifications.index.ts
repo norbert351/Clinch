@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { jwtMiddleware } from "../auth/jwt.middleware";
-import { successResponse } from "../../middleware/error.middleware";
+import { errorResponse, successResponse } from "../../middleware/error.middleware";
 import { db } from "../../config/db";
 import { notifications } from "../../db/schema";
 
@@ -11,7 +11,7 @@ router.get("/", jwtMiddleware, async (req, res, next) => {
   try {
     const wallet = (req.wallet as string) || '';
     if (!wallet) {
-      res.status(401).json(successResponse());
+      res.status(401).json(errorResponse('Wallet authentication required'));
       return;
     }
     const notifs = await db
@@ -30,17 +30,36 @@ router.get("/unread-count", jwtMiddleware, async (req, res, next) => {
   try {
     const wallet = (req.wallet as string) || '';
     if (!wallet) {
-      res.status(401).json(successResponse({ count: 0 }));
+      res.status(401).json(errorResponse('Wallet authentication required'));
       return;
     }
     const result = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(notifications)
       .where(
-        eq(notifications.walletAddress, wallet.toLowerCase()) &&
-        eq(notifications.read, false)
+        and(
+          eq(notifications.walletAddress, wallet.toLowerCase()),
+          eq(notifications.read, false),
+        ),
       );
     res.json(successResponse({ count: result[0]?.count ?? 0 }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/read-all", jwtMiddleware, async (req, res, next) => {
+  try {
+    const wallet = (req.wallet as string) || '';
+    if (!wallet) {
+      res.status(401).json(errorResponse('Wallet authentication required'));
+      return;
+    }
+    await db
+      .update(notifications)
+      .set({ read: true, readAt: new Date() })
+      .where(eq(notifications.walletAddress, wallet.toLowerCase()));
+    res.json(successResponse({ ok: true }));
   } catch (err) {
     next(err);
   }
@@ -56,33 +75,18 @@ router.patch("/:id/read", jwtMiddleware, async (req, res, next) => {
       .update(notifications)
       .set({ read: true, readAt: new Date() })
       .where(
-        eq(notifications.id, notifId) &&
-        eq(notifications.walletAddress, wallet.toLowerCase())
+        and(
+          eq(notifications.id, notifId),
+          eq(notifications.walletAddress, wallet.toLowerCase()),
+        ),
       )
       .returning();
 
     if (!updated) {
-      res.status(404).json(successResponse({ error: 'Notification not found' }));
+      res.status(404).json(errorResponse('Notification not found'));
       return;
     }
 
-    res.json(successResponse({ ok: true }));
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.patch("/read-all", jwtMiddleware, async (req, res, next) => {
-  try {
-    const wallet = (req.wallet as string) || '';
-    if (!wallet) {
-      res.status(401).json(successResponse());
-      return;
-    }
-    await db
-      .update(notifications)
-      .set({ read: true, readAt: new Date() })
-      .where(eq(notifications.walletAddress, wallet.toLowerCase()));
     res.json(successResponse({ ok: true }));
   } catch (err) {
     next(err);

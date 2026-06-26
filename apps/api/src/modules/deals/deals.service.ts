@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid';
 import { Deal } from '../../db/schema';
 import { getPublicClient } from '../../config/rpc';
 import { CONTRACT_ABI, config } from '../../blockchain/contract';
+import { generateDisputeAnalysis, generateDisputeSummary } from '../ai/ai.service';
 
 export interface DealWithDetails extends Deal {
   depositList?: typeof deposits.$inferSelect[];
@@ -135,7 +136,7 @@ export async function getDealByOnChainId(onChainId: bigint): Promise<DealWithDet
       .where(eq(votes.onChainId, Number(onChainId))),
     db.query.disputes.findFirst({
       where: eq(disputes.onChainId, Number(onChainId)),
-    }),
+    }).catch(() => null),
   ]);
 
   const localPartyADeposited = deal.partyADepositComplete || depositList.some(
@@ -253,6 +254,19 @@ export async function getDealByOnChainId(onChainId: bigint): Promise<DealWithDet
         updatedAt: new Date(),
       })
       .where(eq(deals.onChainId, Number(onChainId)));
+
+    setTimeout(() => {
+      void Promise.allSettled([
+        generateDisputeSummary(Number(onChainId)),
+        generateDisputeAnalysis(Number(onChainId)),
+      ]).then((results) => {
+        results.forEach((result) => {
+          if (result.status === 'rejected') {
+            console.warn('[getDealByOnChainId] AI dispute generation failed:', result.reason);
+          }
+        });
+      });
+    }, 100);
   }
 
   return {
@@ -306,6 +320,31 @@ export async function getActiveDeals(): Promise<Deal[]> {
     );
 
   return activeDeals;
+}
+
+export interface PublicPlatformStats {
+  totalVolumeLocked: string;
+  activeDeals: number;
+}
+
+export async function getPublicPlatformStats(): Promise<PublicPlatformStats> {
+  const [volumeResult, countResult] = await Promise.all([
+    db
+      .select({
+        total: sql<string>`COALESCE(SUM(CAST(${deals.amountA} AS numeric) + CAST(${deals.amountB} AS numeric)), 0)::text`,
+      })
+      .from(deals)
+      .where(eq(deals.status, 'Active')),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(deals)
+      .where(eq(deals.status, 'Active')),
+  ]);
+
+  return {
+    totalVolumeLocked: volumeResult[0]?.total || '0',
+    activeDeals: countResult[0]?.count || 0,
+  };
 }
 
 export function generateInviteToken(): string {

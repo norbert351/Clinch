@@ -1,52 +1,59 @@
-import { cn } from '@/lib/utils';
-
-type DealStatusUI = 'active' | 'disputed' | 'resolved' | 'cancelled' | 'expired' | 'pending';
+type DealStatusUI =
+  | 'active'
+  | 'awaiting-deposit'
+  | 'in-review'
+  | 'disputed'
+  | 'resolved'
+  | 'closed'
+  | 'cancelled'
+  | 'expired'
+  | 'pending';
 
 interface DealStatusBadgeProps {
   status: DealStatusUI | string;
   className?: string;
+  pulse?: boolean;
 }
 
-const statusConfig: Record<
-  DealStatusUI,
-  { label: string; className: string }
-> = {
-  active: {
-    label: 'Active',
-    className: 'text-clinch-status-active-text bg-clinch-status-active-bg border-clinch-status-active-border',
-  },
-  disputed: {
-    label: 'Disputed',
-    className: 'text-clinch-status-disputed-text bg-clinch-status-disputed-bg border-clinch-status-disputed-border',
-  },
-  resolved: {
-    label: 'Resolved',
-    className: 'text-clinch-status-resolved-text bg-clinch-status-resolved-bg border-clinch-status-resolved-border',
-  },
-  cancelled: {
-    label: 'Cancelled',
-    className: 'text-clinch-status-cancelled-text bg-clinch-status-cancelled-bg border-clinch-status-cancelled-border',
-  },
-  expired: {
-    label: 'Expired',
-    className: 'text-clinch-status-cancelled-text bg-clinch-status-cancelled-bg border-clinch-status-cancelled-border',
-  },
-  pending: {
-    label: 'Pending',
-    className: 'text-clinch-status-pending-text bg-clinch-status-pending-bg border-clinch-status-pending-border',
-  },
+const statusConfig: Record<string, { label: string; color: string }> = {
+  active: { label: 'ACTIVE', color: 'var(--status-active)' },
+  pending: { label: 'PENDING', color: 'var(--status-pending)' },
+  'awaiting-deposit': { label: 'PENDING', color: 'var(--status-pending)' },
+  'in-review': { label: 'IN REVIEW', color: 'var(--status-resolve)' },
+  disputed: { label: 'DISPUTED', color: 'var(--status-dispute)' },
+  resolved: { label: 'RESOLVED', color: 'var(--status-resolve)' },
+  cancelled: { label: 'CANCELLED', color: 'var(--status-closed)' },
+  expired: { label: 'EXPIRED', color: 'var(--status-closed)' },
+  closed: { label: 'CLOSED', color: 'var(--status-closed)' },
+  Active: { label: 'ACTIVE', color: 'var(--status-active)' },
+  Pending: { label: 'PENDING', color: 'var(--status-pending)' },
+  Disputed: { label: 'DISPUTED', color: 'var(--status-dispute)' },
+  Resolved: { label: 'RESOLVED', color: 'var(--status-resolve)' },
+  Cancelled: { label: 'CANCELLED', color: 'var(--status-closed)' },
+  Expired: { label: 'EXPIRED', color: 'var(--status-closed)' },
 };
 
-export function DealStatusBadge({ status, className }: DealStatusBadgeProps) {
-  const config = statusConfig[status as DealStatusUI] || statusConfig.pending;
+export function DealStatusBadge({
+  status,
+  className,
+}: DealStatusBadgeProps) {
+  const raw = String(status || '');
+  const normalized = raw.trim().toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-');
+  const config =
+    statusConfig[normalized] ||
+    statusConfig[raw] ||
+    { label: raw.toUpperCase(), color: 'var(--status-closed)' };
 
   return (
     <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium',
-        config.className,
-        className
-      )}
+      className={[
+        'inline-flex items-center pl-2 font-mono text-[10px] uppercase tracking-[0.1em]',
+        className || '',
+      ].join(' ')}
+      style={{
+        color: config.color,
+        borderLeft: `2px solid ${config.color}`,
+      }}
     >
       {config.label}
     </span>

@@ -5,3 +5,7 @@ export * from './votes.schema';
 export * from './disputes.schema';
 export * from './notifications.schema';
 export * from './contract-events.schema';
+export * from './gateway-transfers.schema';
+export * from './messages.schema';
+export * from './message-reads.schema';
+export * from './analytics.schema';

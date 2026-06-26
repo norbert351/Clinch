@@ -1,11 +1,24 @@
 import { db } from '../../config/db';
 import { contractEvents, deals, disputes } from '../../db/schema';
 import { eq } from 'drizzle-orm';
-import { emitDealUpdate, emitDealUpdateToUsers } from '../../socket/gateway';
-import { sendNotification, notifyArbitrator } from '../../modules/notifications/notifications.service';
+import { emitDealUpdateToUsers } from '../../socket/gateway';
+import { notifyArbitrator } from '../../modules/notifications/notifications.service';
 import { config } from '../../config/env';
+import { generateDisputeAnalysis, generateDisputeSummary } from '../../modules/ai/ai.service';
+import { postTimelineMessage } from './timeline';
+import { trackAnalyticsEvent } from '../../modules/analytics/analytics.service';
 
 const PLATFORM_ARBITRATOR = config.admin.arbitrator;
+
+function getPartyLabel(deal: typeof deals.$inferSelect, wallet: string): string {
+  if (wallet === deal.partyA.toLowerCase()) {
+    return deal.dealType === 'OneSided' ? 'Client' : 'Creator';
+  }
+  if (wallet === deal.partyB.toLowerCase()) {
+    return deal.dealType === 'OneSided' ? 'Worker' : 'Counterparty';
+  }
+  return 'Participant';
+}
 
 export async function handleDisputed(
   event: {
@@ -78,6 +91,33 @@ export async function handleDisputed(
     raisedBy,
     arbitrator,
   });
+
+  await postTimelineMessage(onChainId, `Dispute opened by ${getPartyLabel(deal, raisedBy)}.`);
+  await postTimelineMessage(onChainId, 'Arbitrator notified for review.');
+
+  trackAnalyticsEvent({
+    type: 'DISPUTE_OPENED',
+    wallet: raisedBy,
+    dealId: onChainId,
+    amount: (Number(deal.amountA) || 0) + (Number(deal.amountB) || 0),
+    metadata: {
+      arbitrator,
+      source: 'contract',
+    },
+  });
+
+  setTimeout(() => {
+    void Promise.allSettled([
+      generateDisputeSummary(onChainId),
+      generateDisputeAnalysis(onChainId),
+    ]).then((results) => {
+      results.forEach((result) => {
+        if (result.status === 'rejected') {
+          console.warn('[Disputed] AI dispute generation failed:', result.reason);
+        }
+      });
+    });
+  }, 100);
 
   await notifyArbitrator('dispute-opened', {
     onChainId,

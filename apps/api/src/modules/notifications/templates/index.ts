@@ -6,3 +6,4 @@ export * from './dispute-resolved';
 export * from './ruling-deadline';
 export * from './deal-settled';
 export * from './deal-expired';
+export * from './new-message';

@@ -1,42 +1,62 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Geist_Mono } from 'next/font/google';
 import { Providers } from './providers';
+// Suppress TS error when no type declarations exist for global CSS side-effect import
+// @ts-ignore
 import './globals.css';
 
-const inter = Inter({ 
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-const geistMono = Geist_Mono({ 
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-});
-
 export const metadata: Metadata = {
-  title: 'Clinch — Trustless Escrow on Arc Network',
-  description: 'Lock money. Settle deals. No trust required. Create on-chain agreements backed by USDC escrow.',
+  title: 'Clinch - Trustless Agreements on Arc Network',
+  description:
+    'Trustless escrow infrastructure for serious agreements, AI-assisted dispute coordination, and stablecoin-native settlement on Arc.',
   icons: {
-    icon: '/icon.svg',
-    apple: '/icon.svg',
+    icon: '/logo.png',
+    apple: '/logo.png',
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0F1117',
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#07080F' },
+    { media: '(prefers-color-scheme: light)', color: '#F0F2FF' },
+  ],
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${geistMono.variable} bg-clinch-bg-page`}>
-      <body className="font-sans antialiased bg-clinch-bg-page text-clinch-text-primary">
-        <Providers>
-          {children}
-        </Providers>
+    <html
+      lang="en"
+      className="dark"
+      suppressHydrationWarning
+    >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+        try {
+          const t = localStorage.getItem('clinch-theme') || 'dark';
+          document.documentElement.classList.add(t);
+        } catch(e) {
+          document.documentElement.classList.add('dark');
+        }
+      `,
+          }}
+        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=DM+Sans:ital,opsz,wght@0,9..40,100..900;1,9..40,100..900&family=DM+Mono:wght@400;500&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body
+        className="bg-void font-sans text-text-primary antialiased"
+        suppressHydrationWarning
+      >
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

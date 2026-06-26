@@ -1,26 +1,23 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
-  CheckCircle2,
-  FileText,
-  Lock,
-  CheckCircle,
-  Shield,
-  Code2,
-  Scale,
-  Trophy,
-  Briefcase,
-  ArrowLeftRight,
-  Handshake,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/clinch/logo";
-import { WalletProvider, useWallet } from "@/components/wallet-context";
+  ArrowRight,
+  Brain,
+  ShieldCheck,
+  Wallet,
+  Zap,
+} from 'lucide-react';
+import { ClinchLogo } from '@/components/clinch/logo';
+import { ThemeToggle } from '@/components/clinch/theme-toggle';
+import { useWallet } from '@/components/wallet-context';
+import { truncateAddress } from '@/lib/format';
+import { getPublicPlatformStats } from '@/lib/api';
+import type { PublicPlatformStats } from '@/lib/api';
 
 function LandingNavbar() {
-  const { isConnected, connect } = useWallet();
+  const { isConnected, address, connect, hasSigned, isSigning, canConnect } = useWallet();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -28,319 +25,343 @@ function LandingNavbar() {
   }, []);
 
   return (
-    <nav className="sticky top-0 z-50 h-16 border-b border-clinch-border-default bg-clinch-bg-page/80 backdrop-blur-sm">
-      <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 md:px-6">
-        <Logo />
-        {!mounted ? (
-          <Button className="bg-clinch-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-clinch-accent-hover">
-            Connect Wallet
-          </Button>
-        ) : isConnected ? (
-          <Link href="/dashboard">
-            <Button className="bg-clinch-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-clinch-accent-hover">
-              Go to Dashboard
-            </Button>
+    <nav className="fixed inset-x-0 top-0 z-50 border-b border-border-subtle bg-sidebar/95 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+        <Link href="/" className="group">
+          <ClinchLogo size={32} showText textSize="text-xl" />
+        </Link>
+
+        <div className="hidden items-center gap-7 font-sans text-[13px] font-medium text-text-secondary lg:flex">
+          <a href="#how-it-works" className="transition-colors hover:text-cyan">
+            Workflow
+          </a>
+          <a href="#deal-types" className="transition-colors hover:text-cyan">
+            Deal Types
+          </a>
+          <Link href="/activity" className="transition-colors hover:text-cyan">
+            Activity
           </Link>
-        ) : (
-          <Button
-            onClick={connect}
-            className="bg-clinch-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-clinch-accent-hover"
-          >
-            Connect Wallet
-          </Button>
-        )}
+          <a href="#security" className="transition-colors hover:text-cyan">
+            Trust
+          </a>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          {mounted && isConnected && address ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex h-9 items-center gap-2 border border-border-subtle bg-elevated px-3 font-mono text-xs text-text-secondary transition-colors hover:border-cyan hover:text-text-primary"
+            >
+              <span className={hasSigned ? 'h-1.5 w-1.5 rounded-full bg-active pulse-dot' : 'h-1.5 w-1.5 rounded-full bg-pending'} />
+              <span className="hidden sm:inline">
+                {hasSigned ? 'Dashboard' : isSigning ? 'Signing' : 'SIWE pending'}
+              </span>
+              {truncateAddress(address)}
+            </Link>
+          ) : (
+            <button
+              onClick={connect}
+              disabled={!mounted || !canConnect}
+              className="btn-sharp inline-flex h-9 items-center gap-2 bg-usdc px-4 font-sans text-sm font-semibold text-white hover:bg-cyan disabled:opacity-50"
+            >
+              <Wallet className="h-4 w-4" />
+              {mounted && canConnect ? 'Connect' : 'Loading'}
+            </button>
+          )}
+        </div>
       </div>
     </nav>
   );
 }
 
-function HeroSection() {
+function AmountStat({ value, label }: { value: string; label: string }) {
   return (
-    <section className="relative min-h-screen overflow-hidden">
-      {/* Subtle radial gradient overlay */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_center,rgba(79,110,247,0.12)_0%,transparent_50%)]" />
-
-      <div className="relative mx-auto flex min-h-[calc(100vh-64px)] max-w-2xl flex-col items-center justify-center px-4 py-20 text-center">
-        {/* Top label pill */}
-        <div className="inline-flex items-center gap-2 rounded-full border border-clinch-border-default bg-clinch-bg-card px-3 py-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-clinch-accent" />
-          <span className="text-xs font-medium text-clinch-text-secondary">
-            Trustless agreements on Arc Network
-          </span>
-        </div>
-
-        {/* Headline */}
-        <h1
-          className="mt-8 text-4xl font-bold tracking-tight text-clinch-text-primary md:text-5xl"
-          style={{ letterSpacing: "-0.03em" }}
-        >
-          <span className="text-balance">
-            The trustless way to lock and <br className="hidden md:inline" />
-            settle any deal
-          </span>
-        </h1>
-
-        {/* Subheadline */}
-        <p className="mt-5 mb-8 max-w-lg text-lg leading-relaxed text-clinch-text-secondary">
-          Create on-chain agreements backed by USDC escrow. Funds release
-          automatically when both parties agree or through structured
-          arbitration.
-        </p>
-
-        {/* CTA row */}
-        <div className="flex flex-row gap-3">
-          <Link href="/deals/new">
-            <Button
-              size="lg"
-              className="bg-clinch-accent px-6 py-3 text-base font-medium text-white hover:bg-clinch-accent-hover"
-            >
-              Create a deal
-            </Button>
-          </Link>
-
-          <Button
-            onClick={() => {
-              document
-                .getElementById("how-it-works")
-                ?.scrollIntoView({ behavior: "smooth" });
-            }}
-          >
-            See how it works
-          </Button>
-        </div>
-
-        {/* Social proof strip */}
-        <div className="mt-12 flex flex-wrap justify-center gap-8">
-          {["Non-custodial", "On-chain settlement", "Arbitration built-in"].map(
-            (item) => (
-              <div
-                key={item}
-                className="flex items-center gap-2 text-sm text-clinch-text-tertiary"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5 text-clinch-accent" />
-                {item}
-              </div>
-            ),
-          )}
-        </div>
-      </div>
-    </section>
+    <div className="flex items-center gap-2 border border-border-subtle bg-elevated/50 px-4 py-2 backdrop-blur-sm">
+      <span className="font-mono text-[13px] font-medium text-text-primary">{value}</span>
+      <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-tertiary">
+        {label}
+      </span>
+    </div>
   );
 }
 
-function HowItWorksSection() {
-  const steps = [
-    {
-      number: "01",
-      icon: FileText,
-      title: "Define the agreement",
-      description:
-        "Set deal terms, deposit amounts, expiry date, and choose an arbitrator. Share an invite link with your counterparty.",
-    },
-    {
-      number: "02",
-      icon: Lock,
-      title: "Both parties deposit",
-      description:
-        "Each party locks their USDC into the smart contract. No one controls the funds only the contract rules do.",
-    },
-    {
-      number: "03",
-      icon: CheckCircle,
-      title: "Settle or arbitrate",
-      description:
-        "Submit your outcome vote. Matching votes auto-settle. Conflicting votes go to arbitration with a binding ruling.",
-    },
-  ];
+const steps = [
+  {
+    num: '01',
+    title: 'Create',
+    body: 'Both parties set terms, amounts, and the expiry date. An invite link is generated.',
+    color: 'var(--accent-cyan)',
+  },
+  {
+    num: '02',
+    title: 'Lock',
+    body: 'USDC is deposited on Arc Network. The smart contract holds funds - no intermediary.',
+    color: 'var(--accent-blue)',
+  },
+  {
+    num: '03',
+    title: 'Settle',
+    body: 'Both agree to release, or the AI arbitrator rules. Funds move on-chain in seconds.',
+    color: 'var(--accent-violet)',
+  },
+];
 
-  return (
-    <section className="bg-clinch-bg-page pb-20 pt-24" id="how-it-works">
-      <div className="mx-auto max-w-4xl px-4">
-        <div className="text-center">
-          <span className="text-micro text-clinch-accent">HOW IT WORKS</span>
-          <h2 className="mt-3 mb-4 text-h2 text-clinch-text-primary">
-            Three steps to a settled deal
-          </h2>
-          <p className="mb-14 text-clinch-text-secondary">
-            Simple process, trustless execution
-          </p>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-3">
-          {steps.map((step) => (
-            <div
-              key={step.number}
-              className="relative rounded-xl border border-clinch-border-default bg-clinch-bg-card p-7"
-            >
-              <span className="absolute right-5 top-5 text-xs font-bold tracking-wider text-clinch-border-default">
-                {step.number}
-              </span>
-              <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-lg bg-clinch-accent-muted">
-                <step.icon className="h-4.5 w-4.5 text-clinch-accent" />
-              </div>
-              <h4 className="mb-2 text-h4 text-clinch-text-primary">
-                {step.title}
-              </h4>
-              <p className="text-sm leading-relaxed text-clinch-text-secondary">
-                {step.description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function TrustSignalsSection() {
-  const signals = [
-    {
-      icon: Shield,
-      title: "Non-custodial",
-      text: "Your funds go directly into the smart contract. No platform wallet. No counterparty risk.",
-    },
-    {
-      icon: Code2,
-      title: "Verifiable on-chain",
-      text: "The contract is deployed on Arc Network. Anyone can audit the settlement logic.",
-    },
-    {
-      icon: Scale,
-      title: "Structured arbitration",
-      text: "Designate any wallet as arbitrator, or use the platform fallback. Disputes always have an exit.",
-    },
-  ];
-
-  return (
-    <section className="border-y border-clinch-border-default bg-[#0D1020] py-16">
-      <div className="mx-auto grid max-w-5xl gap-10 px-4 md:grid-cols-3">
-        {signals.map((signal) => (
-          <div key={signal.title}>
-            <signal.icon className="mb-4 h-5 w-5 text-clinch-accent" />
-            <h4 className="mb-2 text-[15px] font-semibold text-clinch-text-primary">
-              {signal.title}
-            </h4>
-            <p className="text-sm leading-relaxed text-clinch-text-secondary">
-              {signal.text}
-            </p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function UseCasesSection() {
-  const useCases = [
-    {
-      icon: Trophy,
-      title: "Betting",
-      description:
-        "Lock stakes before the match. Winner claims the pot automatically.",
-    },
-    {
-      icon: Briefcase,
-      title: "Freelance",
-      description:
-        "Client locks payment. Freelancer delivers. Funds release on confirm.",
-    },
-    {
-      icon: ArrowLeftRight,
-      title: "P2P trades",
-      description: "Trade goods or services with an on-chain safety net.",
-    },
-    {
-      icon: Handshake,
-      title: "Business deals",
-      description:
-        "Formalize any agreement with on-chain collateral backing it.",
-    },
-  ];
-
-  return (
-    <section className="bg-clinch-bg-page py-20">
-      <div className="mx-auto max-w-4xl px-4">
-        <div className="text-center">
-          <h2 className="mb-3 text-h2 text-clinch-text-primary">
-            Built for any agreement
-          </h2>
-          <p className="mb-12 text-clinch-text-secondary">
-            From casual bets to business contracts
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {useCases.map((useCase) => (
-            <div
-              key={useCase.title}
-              className="rounded-xl border border-clinch-border-default bg-clinch-bg-card p-6"
-            >
-              <useCase.icon className="h-5.5 w-5.5 text-clinch-accent" />
-              <h4 className="mt-3 mb-1 text-[15px] font-semibold text-clinch-text-primary">
-                {useCase.title}
-              </h4>
-              <p className="text-[13px] text-clinch-text-secondary">
-                {useCase.description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function FinalCTASection() {
-  return (
-    <section className="bg-clinch-bg-page py-24">
-      <div className="mx-auto max-w-lg px-4 text-center">
-        {/* Accent line */}
-        <div className="mx-auto mb-8 h-16 w-px bg-clinch-accent" />
-
-        <h2 className="text-h2 text-clinch-text-primary">
-          Ready to lock your first deal?
-        </h2>
-        <p className="mt-3 mb-8 text-clinch-text-secondary">
-          Connect your wallet and create an agreement in two minutes.
-        </p>
-        <Link href="/deals/new">
-          <Button
-            size="lg"
-            className="bg-clinch-accent px-8 py-3 text-base font-medium text-white hover:bg-clinch-accent-hover"
-          >
-            Create a deal
-          </Button>
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="border-t border-clinch-border-default py-5">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 text-sm text-clinch-text-tertiary md:px-6">
-        <span>Clinch</span>
-        <span>Built on Arc Network</span>
-      </div>
-    </footer>
-  );
-}
+const trustSignals = [
+  {
+    icon: ShieldCheck,
+    label: 'Non-custodial',
+    body: 'Your funds go directly into the smart contract. Clinch never holds your USDC.',
+    color: 'var(--accent-cyan)',
+  },
+  {
+    icon: Zap,
+    label: 'On-chain settlement',
+    body: 'Sub-second finality on Arc Network. Funds release the moment consensus is reached.',
+    color: 'var(--accent-blue)',
+  },
+  {
+    icon: Brain,
+    label: 'AI arbitration',
+    body: 'When parties disagree, an AI analyzes the evidence and the arbitrator rules on-chain.',
+    color: 'var(--accent-violet)',
+  },
+];
 
 export default function LandingPage() {
+  const [stats, setStats] = useState<PublicPlatformStats | null>(null);
+
+  useEffect(() => {
+    getPublicPlatformStats().then(setStats).catch(() => {});
+  }, []);
+
   return (
-    <WalletProvider>
-      <div className="min-h-screen bg-clinch-bg-page">
-        <LandingNavbar />
-        <main>
-          <HeroSection />
-          <HowItWorksSection />
-          <TrustSignalsSection />
-          <UseCasesSection />
-          <FinalCTASection />
-        </main>
-        <Footer />
-      </div>
-    </WalletProvider>
+    <div className="min-h-screen bg-void text-text-primary">
+      <LandingNavbar />
+      <main>
+        <section className="grid-texture relative min-h-screen overflow-hidden bg-void">
+          <div className="hero-glow -left-25 -top-25 bg-cyan" />
+          <div className="hero-glow -bottom-25 -right-25 bg-violet" />
+
+          <div className="pointer-events-none absolute right-0 top-0 hidden h-full w-[50%] lg:block">
+            <img
+              src="/escrow.jpg"
+              alt=""
+              className="h-full w-full object-cover"
+              style={{ opacity: 0.35 }}
+            />
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  'linear-gradient(to right, var(--bg-void) 0%, transparent 60%)',
+              }}
+            />
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  'linear-gradient(to top, var(--bg-void) 0%, transparent 40%)',
+              }}
+            />
+          </div>
+
+          <div className="relative z-10 mx-auto max-w-6xl px-6 pb-24 pt-32">
+            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-border-default bg-elevated/80 px-4 py-1.5 backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan pulse-dot" />
+              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-cyan">
+                Arc Network · USDC Settlement
+              </span>
+            </div>
+
+            <h1 className="mb-6 max-w-2xl">
+              <span className="block font-display text-[72px] font-bold leading-none tracking-tight text-text-primary">
+                The contract that
+              </span>
+              <span
+                className="block font-display text-[72px] font-bold italic leading-none tracking-tight"
+                style={{
+                  WebkitTextStroke: '1.5px #2775CA',
+                  color: 'transparent',
+                }}
+              >
+                enforces itself.
+              </span>
+            </h1>
+
+            <p className="mb-10 max-w-lg font-sans text-[18px] font-light leading-relaxed text-text-secondary">
+              Lock USDC on Arc Network. Both parties agree or an AI arbitrator rules. No lawyers. No trust required.
+            </p>
+
+            <div className="mb-12 flex flex-wrap items-center gap-4">
+              <Link
+                href="/deals/new"
+                className="btn-sharp glow-blue bg-usdc px-8 py-3.5 font-sans text-[15px] font-semibold text-white hover:bg-cyan"
+              >
+                Create a Deal
+              </Link>
+              <Link
+                href="/activity"
+                className="btn-sharp border border-border-default px-8 py-3.5 font-sans text-[15px] font-medium text-text-secondary hover:border-cyan hover:text-text-primary"
+              >
+                View Live Escrows <ArrowRight className="inline h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <AmountStat value={stats ? `$${stats.totalVolumeLocked}` : '$0'} label="Volume Locked" />
+              <AmountStat value={stats ? String(stats.activeDeals) : '0'} label="Active Deals" />
+              <AmountStat value="2%" label="Platform Fee" />
+            </div>
+          </div>
+        </section>
+
+        <section id="how-it-works" className="border-t border-border-subtle bg-surface px-6 py-24">
+          <div className="mx-auto max-w-6xl">
+            <p className="mb-12 font-sans text-[11px] font-medium uppercase tracking-[0.14em] text-text-tertiary">
+              How it works
+            </p>
+            <div className="grid grid-cols-1 gap-0 md:grid-cols-3">
+              {steps.map((step, index) => (
+                <div
+                  key={step.num}
+                  className="relative border-t-2 pb-8 pr-8 pt-8"
+                  style={{ borderTopColor: step.color }}
+                >
+                  {index < 2 && (
+                    <div
+                      className="absolute right-0 -top-0.5 hidden h-0.5 w-8 md:block"
+                      style={{
+                        background: `linear-gradient(to right, ${step.color}, transparent)`,
+                      }}
+                    />
+                  )}
+                  <span
+                    className="mb-4 block font-mono text-[56px] font-medium leading-none"
+                    style={{ color: step.color, opacity: 0.25 }}
+                  >
+                    {step.num}
+                  </span>
+                  <h3 className="mb-3 font-sans text-[18px] font-semibold text-text-primary">
+                    {step.title}
+                  </h3>
+                  <p className="font-sans text-[14px] font-light leading-relaxed text-text-secondary">
+                    {step.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="deal-types" className="bg-void px-6 py-24">
+          <div className="mx-auto max-w-6xl">
+            <p className="mb-12 font-sans text-[11px] font-medium uppercase tracking-[0.14em] text-text-tertiary">
+              Escrow types
+            </p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="border border-l-4 border-border-subtle border-l-usdc bg-surface p-8 transition-colors hover:border-l-cyan">
+                <span className="mb-2 inline-block font-mono text-[10px] uppercase tracking-[0.12em] text-usdc">
+                  Mutual Stake
+                </span>
+                <h3 className="mb-3 font-sans text-[20px] font-semibold text-text-primary">
+                  Peer agreements
+                </h3>
+                <p className="font-sans text-[14px] font-light leading-relaxed text-text-secondary">
+                  Both parties deposit USDC. Winner takes the full pot. Loser forfeits their stake. Maximum skin in the game.
+                </p>
+              </div>
+              <div className="border border-l-4 border-border-subtle border-l-cyan bg-surface p-8 transition-colors hover:border-l-violet">
+                <span className="mb-2 inline-block font-mono text-[10px] uppercase tracking-[0.12em] text-cyan">
+                  One-Sided Escrow
+                </span>
+                <h3 className="mb-3 font-sans text-[20px] font-semibold text-text-primary">
+                  Freelance & services
+                </h3>
+                <p className="font-sans text-[14px] font-light leading-relaxed text-text-secondary">
+                  Client locks payment upfront. Worker gets paid when work is confirmed complete. No more unpaid invoices.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="security" className="border-t border-border-subtle bg-surface px-6 py-24">
+          <div className="mx-auto max-w-6xl">
+            <div className="grid grid-cols-1 gap-12 md:grid-cols-3">
+              {trustSignals.map((item) => (
+                <div key={item.label}>
+                  <div
+                    className="mb-4 flex h-10 w-10 items-center justify-center border"
+                    style={{
+                      borderColor: `${item.color}40`,
+                      backgroundColor: `${item.color}10`,
+                    }}
+                  >
+                    <item.icon className="h-5 w-5" style={{ color: item.color }} />
+                  </div>
+                  <h3 className="mb-2 font-sans text-[16px] font-semibold text-text-primary">
+                    {item.label}
+                  </h3>
+                  <p className="font-sans text-[14px] font-light leading-relaxed text-text-secondary">
+                    {item.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="overflow-hidden border-t border-border-subtle bg-void px-6 py-24">
+          <div className="mx-auto max-w-6xl">
+            <div className="grid grid-cols-1 items-center gap-16 md:grid-cols-2">
+              <div>
+                <p className="mb-4 font-sans text-[11px] font-medium uppercase tracking-[0.14em] text-text-tertiary">
+                  Works everywhere
+                </p>
+                <h2 className="mb-4 font-sans text-[32px] font-semibold leading-tight text-text-primary">
+                  Deal on any device.
+                  <br />
+                  Settle on-chain.
+                </h2>
+                <p className="font-sans text-[15px] font-light leading-relaxed text-text-secondary">
+                  Clinch works in any browser. Your counterparty just needs a wallet. The contract does the rest.
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <div
+                  className="relative overflow-hidden border-[6px] border-elevated shadow-2xl"
+                  style={{
+                    borderRadius: '40px',
+                    width: '240px',
+                    aspectRatio: '9 / 19.5',
+                    boxShadow: '0 40px 80px -20px rgba(0,0,0,0.8), 0 0 40px #2775CA20',
+                  }}
+                >
+                  <img
+                    src="/phone.jpg"
+                    alt="Clinch on mobile"
+                    className="h-full w-full object-cover"
+                    style={{ opacity: 0.9 }}
+                  />
+                  <div className="absolute left-1/2 top-3 h-6 w-20 -translate-x-1/2 rounded-full bg-void" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-border-subtle bg-sidebar px-6 py-10">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-6">
+          <ClinchLogo size={28} showText textSize="text-base" />
+          <div className="flex flex-wrap gap-x-8 gap-y-2">
+            <span className="font-mono text-[11px] uppercase tracking-widest text-text-tertiary">
+              Built on Arc Network · USDC Settlement
+            </span>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }

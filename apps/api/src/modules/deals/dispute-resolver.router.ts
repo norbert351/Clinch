@@ -7,6 +7,8 @@ import { eq } from 'drizzle-orm';
 import { emitDealUpdateToUsers } from '../../socket/gateway';
 import { sendNotification, notifyArbitrator } from '../../modules/notifications/notifications.service';
 import { config } from '../../config/env';
+import { generateSettlementSummary } from '../ai/ai.service';
+import { trackAnalyticsEvent } from '../analytics/analytics.service';
 
 const PLATFORM_ARBITRATOR = config.admin.arbitrator;
 const PLATFORM_FEE_BPS = config.fees.platformFee;
@@ -82,6 +84,12 @@ export async function resolveDisputeHandler(
       resolvedByArbitrator: true,
     });
 
+    setTimeout(() => {
+      void generateSettlementSummary(onChainId).catch((err) => {
+        console.warn('[resolveDispute] AI settlement summary failed:', err);
+      });
+    }, 100);
+
     await sendNotification('deal-settled', deal.partyA, {
       onChainId,
       status: 'Resolved',
@@ -95,6 +103,19 @@ export async function resolveDisputeHandler(
     await notifyArbitrator('dispute-resolved', {
       onChainId,
       winner: outcome,
+    });
+
+    trackAnalyticsEvent({
+      type: 'DEAL_RESOLVED',
+      wallet: caller,
+      dealId: onChainId,
+      amount: totalPot,
+      metadata: {
+        outcome,
+        winnerPayout,
+        platformFee: platformFeeNum,
+        source: 'api',
+      },
     });
 
     res.json(successResponse({

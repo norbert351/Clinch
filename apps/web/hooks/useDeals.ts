@@ -9,10 +9,15 @@ import {
   updateDealMetadata,
   getPendingDisputes,
   raiseDispute,
+  getDisputeAIAnalysis,
+  generateDisputeAIAnalysis,
+  getUnreadCounts,
   getToken,
+  getWalletAddressFromToken,
+  backfillDeal,
 } from "@/lib/api";
 import { publicClient, getDealFromContract } from "@/hooks/useContract";
-import type { Deal, Dispute, DealWithDeposits } from "@/lib/types";
+import type { Deal, DisputeWithDeal, DealWithDeposits } from "@/lib/types";
 
 // ─── status mapping ───────────────────────────────────────────────────────────
 
@@ -78,11 +83,7 @@ async function fetchDealWithFallback(
 
   // ── Backend returned 404 — trigger backfill then read from chain ──────────
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-  fetch(`${apiUrl}/api/deals/backfill/${onChainId}`, {
-    method: "POST",
-  }).catch(() => {});
+  void backfillDeal(onChainId).catch(() => {});
 
   try {
     const onChainDeal = await getDealFromContract(publicClient, onChainId);
@@ -110,6 +111,10 @@ async function fetchDealWithFallback(
       inviteToken: undefined,
       title: undefined,
       description: undefined,
+      aiSettlementSummary: null,
+      aiDisputeSummary: null,
+      aiSummaryGeneratedAt: null,
+      aiSummaryStatus: null,
       createdAt: onChainDeal.createdAt,
       expiryTimestamp: new Date(
         Date.now() + 30 * 24 * 60 * 60 * 1000,
@@ -142,18 +147,18 @@ async function fetchDealWithFallback(
 
 // ─── hooks ────────────────────────────────────────────────────────────────────
 
-export function useDeals(page = 1, pageSize = 20, status?: string) {
+export function useDeals(
+  page = 1,
+  pageSize = 20,
+  status?: string,
+  connectedWallet?: string | null,
+) {
   const token = getToken();
 
   const wallet = useMemo(() => {
-    if (!token) return undefined;
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.address || payload.walletAddress || undefined;
-    } catch {
-      return undefined;
-    }
-  }, [token]);
+    if (connectedWallet === null) return undefined;
+    return connectedWallet?.toLowerCase() || getWalletAddressFromToken(token)?.toLowerCase();
+  }, [connectedWallet, token]);
 
   return useQuery({
     queryKey: ["deals", page, pageSize, status, wallet],
@@ -173,6 +178,18 @@ export function useDeal(onChainId: number) {
     staleTime: 10_000,
     refetchInterval: 5000,
     placeholderData: (prev) => prev,
+  });
+}
+
+export function useUnreadCounts(enabled = true) {
+  const token = getToken();
+
+  return useQuery({
+    queryKey: ["messages", "unread-counts"],
+    queryFn: getUnreadCounts,
+    enabled: !!token && enabled,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
   });
 }
 
@@ -213,6 +230,16 @@ export function usePendingDisputes() {
   });
 }
 
+export function useDisputeAIAnalysis(onChainId: number, enabled = true) {
+  const token = getToken();
+  return useQuery({
+    queryKey: ["disputes", "ai", onChainId],
+    queryFn: () => getDisputeAIAnalysis(onChainId),
+    enabled: !!token && enabled && onChainId > 0,
+    staleTime: 60_000,
+  });
+}
+
 export function useRaiseDispute() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -225,6 +252,24 @@ export function useRaiseDispute() {
     }) => raiseDispute(onChainId, reasonText),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["disputes"] });
+      queryClient.invalidateQueries({ queryKey: ["deals"] });
+    },
+  });
+}
+
+export function useGenerateDisputeAIAnalysis() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ onChainId }: { onChainId: number }) =>
+      generateDisputeAIAnalysis(onChainId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["disputes", "ai", variables.onChainId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["disputes", "pending"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["deal", variables.onChainId] });
       queryClient.invalidateQueries({ queryKey: ["deals"] });
     },
   });

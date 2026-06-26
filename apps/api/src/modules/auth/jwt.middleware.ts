@@ -1,13 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyJwt } from './auth.service';
-
-declare global {
-  namespace Express {
-    interface Request {
-      wallet?: string;
-    }
-  }
-}
+import { validateAddress } from '../../middleware/validate';
 
 export function jwtMiddleware(
   req: Request,
@@ -35,6 +28,10 @@ export function jwtMiddleware(
     return;
   }
 
-  req.wallet = payload.wallet;
-  next();
+  try {
+    req.wallet = validateAddress(payload.wallet);
+    next();
+  } catch {
+    res.status(401).json({ success: false, error: 'Invalid token' });
+  }
 }

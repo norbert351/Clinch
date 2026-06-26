@@ -1,11 +1,15 @@
 import { db } from '../../config/db';
 import { contractEvents, votes, deals, disputes } from '../../db/schema';
 import { eq } from 'drizzle-orm';
-import { emitDealUpdate, emitDealUpdateToUsers } from '../../socket/gateway';
+import { emitDealUpdateToUsers } from '../../socket/gateway';
 import { sendNotification, notifyArbitrator } from '../../modules/notifications/notifications.service';
+import { generateDisputeAnalysis, generateDisputeSummary } from '../../modules/ai/ai.service';
 import { OUTCOMES } from '../contract';
+import { config } from '../../config/env';
+import { postTimelineMessage } from './timeline';
+import { trackAnalyticsEvent } from '../../modules/analytics/analytics.service';
 
-const PLATFORM_ARBITRATOR = '0xdd4c983Cd57Ee7A6F8Ef0BbB8715B19bdF5C1b61';
+const PLATFORM_ARBITRATOR = config.admin.arbitrator;
 
 function serializeEventPayload(payload: { dealId: bigint; party: string; outcome: number }): Record<string, unknown> {
   return {
@@ -13,6 +17,16 @@ function serializeEventPayload(payload: { dealId: bigint; party: string; outcome
     party: payload.party,
     outcome: payload.outcome,
   };
+}
+
+function getPartyLabel(deal: typeof deals.$inferSelect, party: string): string {
+  if (party === deal.partyA.toLowerCase()) {
+    return deal.dealType === 'OneSided' ? 'Client' : 'Creator';
+  }
+  if (party === deal.partyB.toLowerCase()) {
+    return deal.dealType === 'OneSided' ? 'Worker' : 'Counterparty';
+  }
+  return 'Participant';
 }
 
 export async function handleVoteSubmitted(
@@ -63,6 +77,11 @@ export async function handleVoteSubmitted(
     return;
   }
 
+  await postTimelineMessage(
+    onChainId,
+    `${getPartyLabel(deal, party)} submitted outcome: ${outcomeText}.`,
+  );
+
   const allVotes = await db.select().from(votes).where(eq(votes.onChainId, onChainId));
 
   if (allVotes.length >= 1) {
@@ -111,6 +130,56 @@ export async function handleVoteSubmitted(
           partyBOutcome: bVote.outcome,
           arbitrator,
         });
+
+        await postTimelineMessage(
+          onChainId,
+          `Votes disagreed: creator voted ${aVote.outcome} and counterparty voted ${bVote.outcome}.`,
+        );
+
+        trackAnalyticsEvent({
+          type: 'DISPUTE_OPENED',
+          wallet: party,
+          dealId: onChainId,
+          amount: (Number(deal.amountA) || 0) + (Number(deal.amountB) || 0),
+          metadata: {
+            source: 'vote_mismatch',
+            partyAOutcome: aVote.outcome,
+            partyBOutcome: bVote.outcome,
+            arbitrator,
+          },
+        });
+
+        setTimeout(() => {
+          void Promise.allSettled([
+            generateDisputeSummary(onChainId),
+          ]).then((results) => {
+            results.forEach((result) => {
+              if (result.status === 'rejected') {
+                console.warn('[VoteSubmitted] AI dispute generation failed:', result.reason);
+              }
+            });
+          });
+        }, 100);
+
+        generateDisputeAnalysis(onChainId)
+          .then(result => {
+            if (result) {
+              console.log(
+                '[VoteSubmitted] AI dispute analysis saved:',
+                onChainId,
+                '| Recommended:',
+                result.recommendedOutcome,
+                '| Confidence:',
+                result.confidence
+              );
+            }
+          })
+          .catch(err => {
+            console.warn(
+              '[VoteSubmitted] AI analysis failed (non-fatal):',
+              err?.message
+            );
+          });
 
         await notifyArbitrator('dispute-opened', {
           onChainId,

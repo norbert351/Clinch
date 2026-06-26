@@ -28,17 +28,17 @@ export function WalletAddress({
 
   return (
     <span className={cn('inline-flex items-center gap-1.5', className)}>
-      <span className="font-mono text-sm text-clinch-text-secondary">
+      <span className="font-mono text-sm text-text-secondary">
         {truncate ? truncateAddress(address) : address}
       </span>
       {showCopy && (
         <button
           onClick={handleCopy}
-          className="flex h-5 w-5 items-center justify-center rounded text-clinch-text-tertiary transition-colors hover:text-clinch-text-secondary"
+          className="flex h-5 w-5 items-center justify-center text-text-tertiary transition-colors hover:text-text-secondary"
           aria-label="Copy address"
         >
           {copied ? (
-            <Check className="h-3.5 w-3.5 text-clinch-success" />
+            <Check className="h-3.5 w-3.5 text-active" />
           ) : (
             <Copy className="h-3.5 w-3.5" />
           )}

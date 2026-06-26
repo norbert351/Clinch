@@ -42,6 +42,15 @@ async function main(): Promise<void> {
   });
 }
 
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception:", err?.message || err);
+});
+
+process.on("unhandledRejection", (err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error("[FATAL] Unhandled rejection:", message);
+});
+
 process.on("SIGTERM", () => {
   console.log("SIGTERM received, shutting down gracefully...");
   server.close(() => {

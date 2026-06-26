@@ -6,6 +6,7 @@ import {
   getUserDeals,
 } from './users.service';
 import { successResponse, errorResponse } from '../../middleware/error.middleware';
+import { validateAddress } from '../../middleware/validate';
 
 const updateUserSchema = z.object({
   email: z.string().email().optional(),
@@ -82,13 +83,20 @@ export async function getUserDealsHandler(
   try {
     const { address } = req.params;
     const addressStr = Array.isArray(address) ? address[0] : address;
+    const wallet = req.wallet ? validateAddress(req.wallet) : null;
+    const requestedAddress = validateAddress(addressStr);
 
-    if (!/^0x[a-fA-F0-9]{40}$/.test(addressStr)) {
-      res.status(400).json(errorResponse('Invalid Ethereum address'));
+    if (!wallet) {
+      res.status(401).json(errorResponse('Wallet authentication required'));
       return;
     }
 
-    const userDeals = await getUserDeals(addressStr);
+    if (wallet !== requestedAddress) {
+      res.status(403).json(errorResponse('Not authorized to view these deals'));
+      return;
+    }
+
+    const userDeals = await getUserDeals(requestedAddress);
     res.json(successResponse(userDeals));
   } catch (err) {
     next(err);

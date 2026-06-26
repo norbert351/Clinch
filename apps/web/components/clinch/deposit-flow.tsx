@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Loader2, Wallet } from 'lucide-react';
+import { ArrowRightLeft, Check, Loader2, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatUSDC, truncateAddress } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useUnifiedBalance } from '@/hooks/useUnifiedBalance';
+import { GatewayFundingModal } from './gateway-funding-modal';
 
 type DepositStep = 'approve' | 'deposit';
 type StepState = 'pending' | 'active' | 'complete';
@@ -26,7 +28,15 @@ export function DepositFlow({
 }: DepositFlowProps) {
   const [currentStep, setCurrentStep] = useState<DepositStep>(onApprove ? 'approve' : 'deposit');
   const [isLoading, setIsLoading] = useState(false);
+  const [fundingOpen, setFundingOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { data: unifiedBalance, isLoading: isBalanceLoading } = useUnifiedBalance(
+    Boolean(walletAddress),
+    walletAddress,
+  );
+  const totalUnifiedBalance = unifiedBalance?.totalBalance ?? null;
+  const hasEnoughUnifiedBalance =
+    totalUnifiedBalance !== null && totalUnifiedBalance >= amount;
 
   const steps: { key: DepositStep; label: string; description: string }[] = onApprove ? [
     {
@@ -138,6 +148,45 @@ export function DepositFlow({
         </div>
       </div>
 
+      <div className="rounded-lg border border-clinch-border-default bg-clinch-bg-card p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium text-clinch-text-primary">
+              Unified USDC Balance
+            </div>
+            <div className="mt-1 text-xs text-clinch-text-tertiary">
+              Funds from supported testnets are presented as one spendable balance.
+            </div>
+          </div>
+          <div className="text-right">
+            {isBalanceLoading ? (
+              <div className="h-4 w-20 animate-pulse rounded bg-clinch-bg-elevated" />
+            ) : totalUnifiedBalance === null ? (
+              <div className="text-sm text-clinch-text-secondary">Syncing</div>
+            ) : (
+              <div
+                className={cn(
+                  'text-sm font-semibold tabular-nums',
+                  hasEnoughUnifiedBalance ? 'text-clinch-text-primary' : 'text-clinch-warning',
+                )}
+              >
+                {formatUSDC(totalUnifiedBalance)} USDC
+              </div>
+            )}
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setFundingOpen(true)}
+          className="mt-3 gap-2"
+        >
+          <ArrowRightLeft className="h-4 w-4" />
+          Add USDC
+        </Button>
+      </div>
+
       {/* Payout address notice */}
       <div className="flex items-start gap-3 rounded-lg border border-clinch-border-default bg-clinch-bg-card p-4">
         <Wallet className="mt-0.5 h-4 w-4 shrink-0 text-clinch-text-tertiary" />
@@ -200,6 +249,8 @@ export function DepositFlow({
           </p>
         </div>
       )}
+
+      <GatewayFundingModal open={fundingOpen} onOpenChange={setFundingOpen} />
     </div>
   );
 }

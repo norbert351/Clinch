@@ -22,15 +22,21 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
+  AIDisputeAssistant,
+  AISummaryCard,
   DealStatusBadge,
-  DealTypeChip,
   WalletAddress,
   ActivityTimeline,
   EmptyState,
   DepositFlow,
+  DealChat,
+  UnifiedBalanceCard,
 } from '@/components/clinch';
 import { useWallet } from '@/components/wallet-context';
-import { useDeal, useRefreshDeals } from '@/hooks/useDeals';
+import {
+  useDeal,
+  useRefreshDeals,
+} from '@/hooks/useDeals';
 import type { DealWithDeposits } from '@/lib/types';
 import { useContract } from '@/hooks/useContract';
 import {
@@ -42,19 +48,19 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'react-hot-toast';
 import type { Deal, TimelineEvent } from '@/lib/types';
+import { API_URL, getToken } from '@/lib/api';
+import { PLATFORM_ARBITRATOR } from '@/lib/contract';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function AddressAvatar({ address }: { address: string }) {
-  const hash = address.slice(2, 8);
-  const hue = parseInt(hash, 16) % 360;
   return (
     <div
-      className="h-8 w-8 shrink-0 rounded-full"
-      style={{
-        background: `linear-gradient(135deg, hsl(${hue},70%,50%), hsl(${(hue + 60) % 360},70%,50%))`,
-      }}
-    />
+      className="flex h-8 w-8 shrink-0 items-center justify-center font-mono text-[11px] font-medium text-white"
+      style={{ background: 'var(--gradient-brand)' }}
+    >
+      {address.slice(2, 4).toUpperCase()}
+    </div>
   );
 }
 
@@ -68,14 +74,14 @@ function CopyButton({ value }: { value: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium
-        text-clinch-text-tertiary transition-colors
-        hover:bg-clinch-bg-elevated hover:text-clinch-text-primary"
+      className="flex items-center gap-1 border border-border-subtle px-2 py-1 text-xs font-medium
+        text-text-tertiary transition-colors
+        hover:border-border-default hover:text-text-primary"
     >
       {copied ? (
         <>
-          <Check className="h-3 w-3 text-clinch-success" />
-          <span className="text-clinch-success">Copied</span>
+          <Check className="h-3 w-3 text-active" />
+          <span className="text-active">Copied</span>
         </>
       ) : (
         <>
@@ -144,9 +150,9 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [hasCancelRequested, setHasCancelRequested] = useState(false);
+  const rulingSectionRef = useRef<HTMLDivElement | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
-
   // ── mounted guard ──────────────────────────────────────────────────────────
   useEffect(() => {
     setMounted(true);
@@ -154,12 +160,15 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
 
   // ── socket – join deal room and invalidate query on update ─────────────────
   useEffect(() => {
-    if (!onChainId || !mounted) return;
+    if (!onChainId || !mounted || !hasSigned || !address) return;
 
-    const socketUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const socket = io(socketUrl, {
+    const token = getToken();
+    if (!token) return;
+
+    const socket = io(API_URL, {
       path: '/socket.io',
       transports: ['polling', 'websocket'],
+      auth: { token },
       reconnectionAttempts: 3,
       reconnectionDelay: 1000,
       timeout: 5000,
@@ -171,6 +180,8 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
     socket.on('deal-updated', () => {
       queryClient.invalidateQueries({ queryKey: ['deal', onChainId] });
       queryClient.invalidateQueries({ queryKey: ['deals'] });
+      queryClient.invalidateQueries({ queryKey: ['disputes'] });
+      queryClient.invalidateQueries({ queryKey: ['disputes', 'ai', onChainId] });
       refetch();
     });
 
@@ -184,7 +195,7 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [onChainId, mounted]);
+  }, [onChainId, mounted, hasSigned, address, queryClient, refetch]);
 
   // ── polling while syncing ──────────────────────────────────────────────────
   useEffect(() => {
@@ -443,9 +454,9 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
   if (!mounted) {
     return (
       <div className="flex flex-col gap-4 p-8">
-        <div className="h-8 w-48 animate-pulse rounded-lg bg-clinch-bg-surface" />
-        <div className="h-64 animate-pulse rounded-xl bg-clinch-bg-surface" />
-        <div className="h-48 animate-pulse rounded-xl bg-clinch-bg-surface" />
+        <div className="h-8 w-48 animate-pulse bg-elevated" />
+        <div className="h-64 animate-pulse bg-elevated" />
+        <div className="h-48 animate-pulse bg-elevated" />
       </div>
     );
   }
@@ -453,9 +464,9 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
   if (isLoading || syncing) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-clinch-accent" />
+        <Loader2 className="h-8 w-8 animate-spin text-usdc" />
         {syncing && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-clinch-text-secondary">
+          <div className="mt-4 flex items-center gap-2 text-sm text-text-secondary">
             <RefreshCw className="h-4 w-4 animate-spin" />
             <span>Syncing deal with blockchain…</span>
           </div>
@@ -470,8 +481,8 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
         <div className="mx-auto max-w-5xl">
           <Link
             href="/dashboard"
-            className="mb-6 inline-flex items-center gap-2 text-sm text-clinch-text-tertiary
-              transition-colors hover:text-clinch-text-secondary"
+            className="mb-6 inline-flex items-center gap-2 text-sm text-text-tertiary
+              transition-colors hover:text-text-secondary"
           >
             <ChevronLeft className="h-4 w-4" />
             Back to dashboard
@@ -482,7 +493,7 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
             description="This deal does not exist or has not been indexed yet."
             action={
               <Link href="/deals/new">
-                <Button className="gap-2 bg-clinch-accent text-white hover:bg-clinch-accent-hover">
+                <Button className="btn-sharp gap-2 bg-usdc text-white hover:bg-[#1A5FA8]">
                   Create a new deal
                 </Button>
               </Link>
@@ -503,7 +514,6 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
   const isFinalized = d.status === 'resolved' || d.status === 'cancelled' || d.status === 'expired';
 
   // Arbitrator: treat zero-address as "no arbitrator set"
-  const PLATFORM_ARBITRATOR = '0xdd4c983Cd57Ee7A6F8Ef0BbB8715B19bdF5C1b61';
   const isZeroAddress =
     !d.arbitrator ||
     d.arbitrator === '0x0000000000000000000000000000000000000000';
@@ -535,17 +545,17 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
     const isDisputed = d.status === 'disputed';
 
     if (isTerminal) {
-      return { icon: CheckCircle, label: 'Settled', color: 'text-clinch-text-tertiary' };
+      return { icon: CheckCircle, label: 'Settled', color: 'text-text-tertiary' };
     }
     if (isDisputed) {
       return hasDeposited
-        ? { icon: CheckCircle, label: 'Locked (In Dispute)', color: 'text-clinch-warning' }
-        : { icon: Clock, label: 'Locked', color: 'text-clinch-text-tertiary' };
+        ? { icon: CheckCircle, label: 'Locked (In Dispute)', color: 'text-pending' }
+        : { icon: Clock, label: 'Locked', color: 'text-text-tertiary' };
     }
     if (hasDeposited) {
-      return { icon: CheckCircle, label: 'Deposited', color: 'text-clinch-success' };
+      return { icon: CheckCircle, label: 'Deposited', color: 'text-active' };
     }
-    return { icon: Clock, label: isOneSided ? 'Awaiting payment' : 'Awaiting deposit', color: 'text-clinch-warning' };
+    return { icon: Clock, label: isOneSided ? 'Awaiting payment' : 'Awaiting deposit', color: 'text-pending' };
   }
 
   const creatorDeposit = getDepositStatus(d.creator.hasDeposited);
@@ -637,166 +647,236 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
 
   const canCancel = d.status === 'active' && isParty;
   const canExpire = expiry.isExpired && d.status === 'active';
+  const handleApplyAIRecommendation = (outcome: 'PartyAWins' | 'PartyBWins' | 'Split') => {
+    setSelectedOutcome(outcome);
+    toast('Recommendation applied — scroll down to confirm', {
+      icon: '✦',
+      duration: 4000,
+    });
+    rulingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   // ── render ─────────────────────────────────────────────────────────────────
   return (
     <div className="px-4 pb-16 pt-8 md:px-8">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-7xl">
         {/* back link */}
         <Link
           href="/dashboard"
-          className="mb-6 inline-flex items-center gap-2 text-sm text-clinch-text-tertiary
-            transition-colors hover:text-clinch-text-secondary"
+          className="mb-6 inline-flex items-center gap-2 text-sm text-text-tertiary
+            transition-colors hover:text-text-secondary"
         >
           <ChevronLeft className="h-4 w-4" />
           Back to dashboard
         </Link>
 
         {/* status row */}
-        <div className="mb-6 flex items-start justify-between">
-          <div className="flex items-center gap-3">
+        <div className="mb-6">
+          <div className="mb-1 flex items-center gap-3">
+            <span className="font-mono text-[14px] text-text-tertiary">
+              #{onChainId}
+            </span>
             <DealStatusBadge status={d.status} />
-            <DealTypeChip type={d.type} />
-            <span className="font-mono text-xs text-clinch-text-tertiary">
-              #{d.id}
+            <span className="border border-border-subtle px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-text-tertiary">
+              {d.type === 'mutual' ? 'MUTUAL STAKE' : 'ONE-SIDED'}
             </span>
           </div>
-          <span className="text-sm text-clinch-text-tertiary">
-            {formatRelativeTime(d.createdAt)}
-          </span>
+          <h1 className="font-sans text-[24px] font-semibold text-text-primary">
+            {d.title || 'Untitled Agreement'}
+          </h1>
+          <p className="mt-1 font-mono text-[11px] text-text-tertiary">
+            Created {formatRelativeTime(d.createdAt)}
+          </p>
+          {d.description && (
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-secondary">
+              {d.description}
+            </p>
+          )}
         </div>
 
-        {/* title */}
-        <h1 className="mb-2 text-h2 text-clinch-text-primary">
-          {d.title || d.description ? (
-            d.title || d.description?.substring(0, 50)
-          ) : (
-            <span className="text-clinch-text-tertiary">Untitled deal</span>
-          )}
-        </h1>
-
         {/* description */}
-        {d.description && (
-          <p className="mb-4 max-w-2xl text-sm leading-relaxed text-clinch-text-secondary">
+        {false && d.description && (
+          <p className="mb-6 max-w-2xl text-sm leading-relaxed text-text-secondary">
             {d.description}
           </p>
         )}
 
         {/* invite link */}
         {showInviteLink && (
-          <div className="mb-6 rounded-lg border border-clinch-border-default
-            bg-clinch-bg-elevated p-4">
-            <p className="mb-1 text-sm font-medium text-clinch-text-primary">
-              Share with counterparty
+          <div className="mb-6 border border-dashed border-border-default bg-elevated p-4">
+            <p className="mb-1 font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
+              Share with Counterparty
             </p>
-            <p className="mb-3 text-xs text-clinch-text-tertiary">
+            <p className="mb-3 text-xs text-text-tertiary">
               Send this link so your counterparty can review and deposit their
               share.
             </p>
-            <div className="flex items-center gap-2 rounded-md border
-              border-clinch-border-default bg-clinch-bg-page px-3 py-2">
-              <span className="flex-1 truncate font-mono text-xs text-clinch-text-secondary">
+            <div className="flex items-center gap-2 border border-border-subtle bg-surface px-3 py-2">
+              <span className="flex-1 truncate font-mono text-xs text-text-secondary">
                 {inviteUrl}
               </span>
               <CopyButton value={inviteUrl} />
               <button
                 onClick={() => window.open(inviteUrl, '_blank')}
-                className="rounded p-1 text-clinch-text-tertiary transition-colors
-                  hover:text-clinch-text-secondary"
+                className="p-1 text-text-tertiary transition-colors
+                  hover:text-text-secondary"
                 aria-label="Open invite link"
               >
                 <Share2 className="h-3.5 w-3.5" />
               </button>
             </div>
-            <p className="mt-2 text-xs text-clinch-text-tertiary">
+            <p className="mt-2 text-xs text-text-tertiary">
               This link expires when the deal expires or is cancelled.
             </p>
           </div>
         )}
 
         {/* two-column layout */}
-        <div className="grid gap-8 lg:grid-cols-[1fr,380px]">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
           {/* ── left column ── */}
           <div className="order-2 space-y-6 lg:order-1">
             {/* parties card */}
-            <div className="rounded-xl border border-clinch-border-default
-              bg-clinch-bg-card p-6">
-              <h3 className="mb-4 text-h4 text-clinch-text-primary">
-                Parties and deposits
-              </h3>
+            <div className="mb-4 border border-border-subtle bg-surface">
+              <div className="border-b border-border-subtle px-5 py-3">
+                <p className="font-sans text-[11px] font-medium uppercase tracking-[0.14em] text-text-tertiary">
+                  Parties & Deposits
+                </p>
+              </div>
 
-              <div className="space-y-4">
+              <div className="divide-y divide-border-subtle">
                 {/* party A (creator / client) */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between px-5 py-4">
                   <div className="flex items-center gap-3">
                     <AddressAvatar address={d.creator.address} />
                     <div>
                       <WalletAddress address={d.creator.address} />
-                      <div className="text-xs text-clinch-text-tertiary">
+                      <div className="font-sans text-[10px] uppercase tracking-wide text-text-tertiary">
                         {partyALabel} {isCreator && '(You)'}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <div className="font-mono text-[15px] text-text-primary">
+                      {formatUSDC(d.creator.depositAmount)} <span className="text-[11px] text-text-secondary">USDC</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-end gap-2">
                     <creatorDeposit.icon className={`h-4 w-4 ${creatorDeposit.color}`} />
-                    <span className={`text-sm ${creatorDeposit.color}`}>
+                    <span className={`font-mono text-xs ${creatorDeposit.color}`}>
                       {creatorDeposit.label}
                     </span>
+                    </div>
                   </div>
                 </div>
 
                 {/* party B (counterparty / worker) */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between px-5 py-4">
                   <div className="flex items-center gap-3">
                     <AddressAvatar address={d.counterparty.address} />
                     <div>
                       <WalletAddress address={d.counterparty.address} />
-                      <div className="text-xs text-clinch-text-tertiary">
+                      <div className="font-sans text-[10px] uppercase tracking-wide text-text-tertiary">
                         {partyBLabel} {isCounterparty && '(You)'}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <div className="font-mono text-[15px] text-text-primary">
+                      {formatUSDC(d.counterparty.depositAmount)} <span className="text-[11px] text-text-secondary">USDC</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-end gap-2">
                     {isOneSided ? (
                       <>
-                        <CheckCircle className="h-4 w-4 text-clinch-text-tertiary" />
-                        <span className="text-sm text-clinch-text-tertiary">
+                        <CheckCircle className="h-4 w-4 text-text-tertiary" />
+                        <span className="font-mono text-xs text-text-tertiary">
                           {d.status === 'resolved' || d.status === 'cancelled' || d.status === 'expired' ? 'Settled' : 'No deposit required'}
                         </span>
                       </>
                     ) : (
                       <>
                         <counterpartyDeposit.icon className={`h-4 w-4 ${counterpartyDeposit.color}`} />
-                        <span className={`text-sm ${counterpartyDeposit.color}`}>
+                        <span className={`font-mono text-xs ${counterpartyDeposit.color}`}>
                           {counterpartyDeposit.label}
                         </span>
                       </>
                     )}
+                    </div>
                   </div>
                 </div>
               </div>
+              <div className="flex items-center justify-between border-t border-border-default px-5 py-3">
+                <span className="font-sans text-[11px] uppercase tracking-[0.12em] text-text-tertiary">Total Escrowed</span>
+                <span className="font-mono text-[18px] text-text-primary">
+                  {formatUSDC(totalAmount)} <span className="text-[12px] text-text-secondary">USDC</span>
+                </span>
+              </div>
             </div>
 
+            <DealChat
+              onChainId={onChainId}
+              status={d.status}
+              dealType={deal?.dealType || (isOneSided ? 'OneSided' : 'MutualStake')}
+              currentWallet={address}
+              currentRole={
+                isArbitrator
+                  ? 'arbitrator'
+                  : isCreator
+                    ? isOneSided ? 'client' : 'creator'
+                    : isCounterparty
+                      ? isOneSided ? 'worker' : 'counterparty'
+                      : undefined
+              }
+              isParticipant={Boolean(isParty)}
+              isArbitrator={Boolean(isArbitrator)}
+            />
+
+            {d.status === 'resolved' && (
+              <AISummaryCard
+                title="AI settlement report"
+                summary={deal?.aiSettlementSummary}
+                generatedAt={deal?.aiSummaryGeneratedAt}
+                status={deal?.aiSettlementSummary ? 'Generated' : deal?.aiSummaryStatus}
+              />
+            )}
+
+            {d.status === 'disputed' && (
+              <AISummaryCard
+                title="AI dispute briefing"
+                summary={deal?.aiDisputeSummary}
+                generatedAt={deal?.aiSummaryGeneratedAt}
+                status={deal?.aiDisputeSummary ? 'Generated' : deal?.aiSummaryStatus}
+              />
+            )}
+
+            {d.status === 'disputed' && (
+              <AIDisputeAssistant
+                onChainId={onChainId}
+                isArbitrator={isArbitrator}
+                isOneSided={isOneSided}
+                partyALabel={partyALabel}
+                partyBLabel={partyBLabel}
+                onApplyRecommendation={isArbitrator ? handleApplyAIRecommendation : undefined}
+              />
+            )}
+
             {/* deal terms card */}
-            <div className="rounded-xl border border-clinch-border-default
-              bg-clinch-bg-card p-6">
-              <h3 className="mb-4 text-h4 text-clinch-text-primary">
+            <div className="border border-border-subtle bg-surface p-6">
+              <h3 className="mb-4 text-base font-semibold text-text-primary">
                 Deal terms
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-clinch-text-tertiary">{depositLabel}</span>
-                  <span className="text-clinch-text-primary">
+                  <span className="text-text-tertiary">{depositLabel}</span>
+                  <span className="text-text-primary">
                     {formatUSDC(d.creator.depositAmount)} USDC
                   </span>
                 </div>
 
                 {isOneSided ? (
                   <div className="flex justify-between">
-                    <span className="text-clinch-text-tertiary">
+                    <span className="text-text-tertiary">
                       Net payout to {partyBLabel}
                     </span>
-                    <span className="text-clinch-text-primary">
+                    <span className="text-text-primary">
                       {formatUSDC(
                         d.creator.depositAmount * (1 - d.platformFee / 10000)
                       )}{' '}
@@ -805,26 +885,26 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                   </div>
                 ) : (
                   <div className="flex justify-between">
-                    <span className="text-clinch-text-tertiary">
+                    <span className="text-text-tertiary">
                       {partyBLabel} deposit
                     </span>
-                    <span className="text-clinch-text-primary">
+                    <span className="text-text-primary">
                       {formatUSDC(d.counterparty.depositAmount)} USDC
                     </span>
                   </div>
                 )}
 
                 <div className="flex justify-between">
-                  <span className="text-clinch-text-tertiary">Platform fee</span>
-                  <span className="text-clinch-text-primary">
+                  <span className="text-text-tertiary">Platform fee</span>
+                  <span className="text-text-primary">
                     {(d.platformFee / 100).toFixed(1)}%
                   </span>
                 </div>
 
                 {d.status === 'active' && !isOneSided && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-clinch-text-tertiary">Payout to winner</span>
-                    <span className="text-clinch-success">
+                    <span className="text-text-tertiary">Payout to winner</span>
+                    <span className="text-active">
                       {formatUSDC(
                         totalAmount * (1 - d.platformFee / 10000)
                       )} USDC
@@ -833,26 +913,26 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                 )}
 
                 <div className="flex justify-between">
-                  <span className="text-clinch-text-tertiary">Arbitrator</span>
-                  <span className="text-clinch-text-primary">
+                  <span className="text-text-tertiary">Arbitrator</span>
+                  <span className="text-text-primary">
                     {displayArbitrator.slice(0, 6)}…{displayArbitrator.slice(-4)}
-                    <span className="ml-1 text-xs text-clinch-text-tertiary">(Platform)</span>
+                    <span className="ml-1 text-xs text-text-tertiary">(Platform)</span>
                   </span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-clinch-text-tertiary">Created</span>
-                  <span className="text-clinch-text-primary">
+                  <span className="text-text-tertiary">Created</span>
+                  <span className="text-text-primary">
                     {formatDate(d.createdAt)}
                   </span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-clinch-text-tertiary">Expires</span>
+                  <span className="text-text-tertiary">Expires</span>
                   <span
                     className={cn(
-                      'text-clinch-text-primary',
-                      expiry.isExpired && 'text-clinch-danger'
+                      'text-text-primary',
+                      expiry.isExpired && 'text-dispute'
                     )}
                   >
                     {formatDate(d.expiresAt)} ({expiry.text})
@@ -860,8 +940,8 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-clinch-text-tertiary">Deal type</span>
-                  <span className="text-clinch-text-primary">
+                  <span className="text-text-tertiary">Deal type</span>
+                  <span className="text-text-primary">
                     {d.type === 'mutual' ? 'Mutual Stake' : 'One-Sided'}
                   </span>
                 </div>
@@ -869,9 +949,8 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
             </div>
 
             {/* timeline card */}
-            <div className="rounded-xl border border-clinch-border-default
-              bg-clinch-bg-card p-6">
-              <h3 className="mb-4 text-h4 text-clinch-text-primary">
+            <div className="border border-border-subtle bg-surface p-6">
+              <h3 className="mb-4 text-base font-semibold text-text-primary">
                 Activity timeline
               </h3>
               <ActivityTimeline events={timelineEvents} />
@@ -879,36 +958,35 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
           </div>
 
           {/* ── right column — action panel ── */}
-          <div className="order-1 lg:order-2 lg:sticky lg:top-24 lg:h-fit">
-            <div className="rounded-xl border border-clinch-border-default
-              bg-clinch-bg-card p-6">
+          <div className="order-1 lg:order-2 lg:sticky lg:top-4 lg:h-fit">
+            <div className="border border-border-subtle bg-surface p-6">
               {/* total locked */}
               <div className="mb-4 text-center">
-                <div className="text-2xl font-semibold tabular-nums text-clinch-text-primary">
-                  {formatUSDC(totalAmount)} USDC
+                <div className="font-mono text-3xl text-text-primary">
+                  {formatUSDC(totalAmount)} <span className="text-sm text-text-secondary">USDC</span>
                 </div>
-                <div className="text-xs text-clinch-text-tertiary">
+                <div className="text-xs text-text-tertiary">
                   Total locked
                 </div>
               </div>
 
-              <div className="mb-6 border-t border-clinch-border-default" />
+              <div className="rule-gradient mb-6" />
 
               {/* connected-as row */}
               {address && (
-                <div className="mb-4 rounded-lg bg-clinch-bg-elevated px-3 py-2 text-xs">
-                  <span className="text-clinch-text-tertiary">Connected as: </span>
-                  <span className="font-mono text-clinch-text-secondary">
+                <div className="mb-4 bg-elevated px-3 py-2 text-xs">
+                  <span className="text-text-tertiary">Connected as: </span>
+                  <span className="font-mono text-text-secondary">
                     {address.slice(0, 6)}…{address.slice(-4)}
                   </span>
                   {isParty && (
-                    <span className="text-clinch-text-tertiary">
+                    <span className="text-text-tertiary">
                       {' '}
                       ({isCreator ? partyALabel : partyBLabel})
                     </span>
                   )}
                   {isArbitrator && (
-                    <span className="text-clinch-text-tertiary"> (Arbitrator)</span>
+                    <span className="text-text-tertiary"> (Arbitrator)</span>
                   )}
                 </div>
               )}
@@ -916,18 +994,18 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
               {/* ── SCENARIO 1: deposit required ── */}
               {needsDeposit && (
                 <>
-                  <h4 className="mb-1 text-h4 text-clinch-text-primary">
+                  <h4 className="mb-1 text-h4 text-text-primary">
                     {isOneSided ? 'Fund this escrow' : 'Your deposit is required'}
                   </h4>
-                  <p className="mb-4 text-sm text-clinch-text-secondary">
+                  <p className="mb-4 text-sm text-text-secondary">
                     {isOneSided
                       ? `Deposit ${formatUSDC(userParty.depositAmount)} USDC to fund this escrow. ${partyBLabel} receives payment on completion.`
                       : 'To activate this deal, deposit your share of the funds.'}
                   </p>
 
                   {/* payout reminder */}
-                  <div className="mb-4 rounded-lg border border-clinch-border-default
-                    bg-clinch-bg-elevated px-3 py-2 text-xs text-clinch-text-tertiary">
+                  <div className="mb-4 border border-border-subtle
+                    bg-elevated px-3 py-2 text-xs text-text-tertiary">
                     Payout will go to:{' '}
                     <span className="font-mono">
                       {address?.slice(0, 6)}…{address?.slice(-4)}
@@ -945,8 +1023,8 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
 
                   {isProcessing && (
                     <div className="mt-4 flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-clinch-accent" />
-                      <span className="text-sm text-clinch-text-secondary">
+                      <Loader2 className="h-4 w-4 animate-spin text-usdc" />
+                      <span className="text-sm text-text-secondary">
                         Processing…
                       </span>
                     </div>
@@ -959,17 +1037,17 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                 isCounterparty &&
                 (d.status === 'active' || d.status === 'pending') &&
                 d.creator.hasDeposited && (
-                  <div className="rounded-lg border border-clinch-border-default
-                    bg-clinch-bg-elevated p-4">
-                    <h4 className="mb-1 text-sm font-medium text-clinch-text-primary">
+                  <div className="border border-border-subtle
+                    bg-elevated p-4">
+                    <h4 className="mb-1 text-sm font-medium text-text-primary">
                       You have been hired
                     </h4>
-                    <p className="text-xs text-clinch-text-secondary">
+                    <p className="text-xs text-text-secondary">
                       The client has locked{' '}
                       {formatUSDC(d.creator.depositAmount)} USDC in escrow.
                       Complete the work then both parties submit the outcome.
                     </p>
-                    <p className="mt-2 text-xs font-medium text-clinch-success">
+                    <p className="mt-2 text-xs font-medium text-active">
                       Your potential payout:{' '}
                       {formatUSDC(
                         d.creator.depositAmount * (1 - d.platformFee / 10000)
@@ -982,10 +1060,10 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
               {/* ── SCENARIO 2: submit outcome / vote ── */}
               {canVote && (
                 <>
-                  <h4 className="mb-1 text-h4 text-clinch-text-primary">
+                  <h4 className="mb-1 text-h4 text-text-primary">
                     Submit your outcome
                   </h4>
-                  <p className="mb-4 text-sm text-clinch-text-secondary">
+                  <p className="mb-4 text-sm text-text-secondary">
                     What was the result of this agreement?
                   </p>
 
@@ -995,25 +1073,25 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                         key={option.value}
                         onClick={() => setSelectedOutcome(option.value)}
                         className={cn(
-                          'flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-all',
+                          'flex w-full items-center gap-3 border p-4 text-left transition-all',
                           selectedOutcome === option.value
-                            ? 'border-clinch-accent bg-clinch-accent-muted'
-                            : 'border-clinch-border-default hover:border-clinch-border-hover'
+                            ? 'border-usdc bg-usdc-dim'
+                            : 'border-border-subtle hover:border-border-default'
                         )}
                       >
                         <option.icon
                           className={cn(
                             'h-5 w-5 shrink-0',
                             selectedOutcome === option.value
-                              ? 'text-clinch-accent'
-                              : 'text-clinch-text-tertiary'
+                              ? 'text-usdc'
+                              : 'text-text-tertiary'
                           )}
                         />
                         <div>
-                          <div className="font-medium text-clinch-text-primary">
+                          <div className="font-medium text-text-primary">
                             {option.label}
                           </div>
-                          <div className="text-xs text-clinch-text-tertiary">
+                          <div className="text-xs text-text-tertiary">
                             {option.description}
                           </div>
                         </div>
@@ -1024,8 +1102,8 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                   <Button
                     onClick={handleSubmitVote}
                     disabled={!selectedOutcome || isProcessing}
-                    className="mt-4 w-full bg-clinch-accent text-white
-                      hover:bg-clinch-accent-hover disabled:opacity-50"
+                    className="mt-4 w-full bg-usdc text-white
+                      hover:bg-[#1A5FA8] disabled:opacity-50"
                   >
                     {isProcessing ? (
                       <>
@@ -1037,18 +1115,18 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                     )}
                   </Button>
 
-                  <div className="my-4 border-t border-clinch-border-default" />
+                  <div className="my-4 border-t border-border-subtle" />
 
                   <Button
                     variant="ghost"
                     onClick={handleRaiseDispute}
                     disabled={isProcessing}
-                    className="w-full border border-clinch-border-default
-                      text-clinch-text-secondary hover:border-clinch-border-hover"
+                    className="w-full border border-border-subtle
+                      text-text-secondary hover:border-border-default"
                   >
                     Raise a dispute instead
                   </Button>
-                  <p className="mt-2 text-center text-xs text-clinch-text-tertiary">
+                  <p className="mt-2 text-center text-xs text-text-tertiary">
                     Disputes can be raised 24 hours after deal creation
                   </p>
                 </>
@@ -1058,17 +1136,17 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
               {d.status === 'active' &&
                 isParty &&
                 (userParty.hasVoted || userVote) && (
-                  <div className="rounded-lg border border-clinch-border-default
-                    bg-clinch-bg-elevated p-4">
-                    <p className="text-sm font-medium text-clinch-text-primary">
+                  <div className="border border-border-subtle
+                    bg-elevated p-4">
+                    <p className="text-sm font-medium text-text-primary">
                       Your outcome is submitted
                     </p>
                     {userVote && (
-                      <p className="mt-1 text-xs text-clinch-success">
+                      <p className="mt-1 text-xs text-active">
                         You voted: {userVote === 'PartyAWins' ? 'Party A Wins' : userVote === 'PartyBWins' ? 'Party B Wins' : 'Split'}
                       </p>
                     )}
-                    <p className="mt-1 text-xs text-clinch-text-secondary">
+                    <p className="mt-1 text-xs text-text-secondary">
                       Waiting for the other party to submit their outcome…
                     </p>
                   </div>
@@ -1076,16 +1154,15 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
 
               {/* ── SCENARIO 4: arbitrator ruling ── */}
               {d.status === 'disputed' && isArbitrator && (
-                <>
-                  <div className="mb-4 rounded-lg border border-amber-500/30
-                    bg-clinch-warning-muted p-4">
+                <div ref={rulingSectionRef}>
+                  <div className="mb-4 border border-pending/40 bg-pending/10 p-4">
                     <div className="flex items-start gap-2">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-clinch-warning" />
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-pending" />
                       <div>
-                        <p className="text-sm font-medium text-clinch-warning">
+                        <p className="text-sm font-medium text-pending">
                           You are the designated arbitrator
                         </p>
-                        <p className="mt-1 text-xs text-clinch-text-secondary">
+                        <p className="mt-1 text-xs text-text-secondary">
                           Your ruling executes on-chain immediately and is
                           final. It cannot be undone.
                         </p>
@@ -1093,7 +1170,7 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                     </div>
                   </div>
 
-                  <h4 className="mb-4 text-h4 text-clinch-text-primary">
+                  <h4 className="mb-4 text-h4 text-text-primary">
                     Submit ruling
                   </h4>
 
@@ -1103,25 +1180,25 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                         key={option.value}
                         onClick={() => setSelectedOutcome(option.value)}
                         className={cn(
-                          'flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-all',
+                          'flex w-full items-center gap-3 border p-4 text-left transition-all',
                           selectedOutcome === option.value
-                            ? 'border-clinch-accent bg-clinch-accent-muted'
-                            : 'border-clinch-border-default hover:border-clinch-border-hover'
+                            ? 'border-usdc bg-usdc-dim'
+                            : 'border-border-subtle hover:border-border-default'
                         )}
                       >
                         <option.icon
                           className={cn(
                             'h-5 w-5 shrink-0',
                             selectedOutcome === option.value
-                              ? 'text-clinch-accent'
-                              : 'text-clinch-text-tertiary'
+                              ? 'text-usdc'
+                              : 'text-text-tertiary'
                           )}
                         />
                         <div>
-                          <div className="font-medium text-clinch-text-primary">
+                          <div className="font-medium text-text-primary">
                             {option.label}
                           </div>
-                          <div className="text-xs text-clinch-text-tertiary">
+                          <div className="text-xs text-text-tertiary">
                             {option.description}
                           </div>
                         </div>
@@ -1132,9 +1209,9 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                   <Button
                     onClick={handleResolveDispute}
                     disabled={!selectedOutcome || isProcessing}
-                    className="mt-4 w-full border border-clinch-danger
-                      bg-clinch-danger-muted text-clinch-danger
-                      hover:bg-clinch-danger/20 disabled:opacity-50"
+                    className="mt-4 w-full border border-dispute
+                      bg-dispute/10 text-dispute
+                      hover:bg-dispute/20 disabled:opacity-50"
                   >
                     {isProcessing ? (
                       <>
@@ -1145,17 +1222,16 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                       'Submit ruling'
                     )}
                   </Button>
-                </>
+                </div>
               )}
 
               {/* ── SCENARIO 5: under arbitration (party view) ── */}
               {d.status === 'disputed' && isParty && !isArbitrator && (
-                <div className="rounded-lg border border-amber-500/30
-                  bg-clinch-warning-muted p-4">
-                  <h4 className="font-medium text-clinch-warning">
+                <div className="border border-pending/40 bg-pending/10 p-4">
+                  <h4 className="font-medium text-pending">
                     Under arbitration
                   </h4>
-                  <p className="mt-2 text-sm text-clinch-text-secondary">
+                  <p className="mt-2 text-sm text-text-secondary">
                     The arbitrator has been notified. They have 24 hours to
                     rule before the platform admin can step in.
                   </p>
@@ -1166,25 +1242,25 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
               {d.status === 'resolved' && (
                 <div className="flex flex-col items-center text-center">
                   <div className="flex h-12 w-12 items-center justify-center
-                    rounded-full bg-clinch-success-muted">
-                    <Check className="h-6 w-6 text-clinch-success" />
+                    rounded-full bg-active/10">
+                    <Check className="h-6 w-6 text-active" />
                   </div>
-                  <h4 className="mt-3 text-h4 text-clinch-text-primary">
+                  <h4 className="mt-3 text-h4 text-text-primary">
                     Settlement complete
                   </h4>
-                  <p className="mt-1 text-sm text-clinch-text-secondary">
+                  <p className="mt-1 text-sm text-text-secondary">
                     Funds have been sent to the winning wallet.
                   </p>
-                  <div className="mt-4 w-full space-y-2 rounded-lg bg-clinch-bg-elevated p-4 text-left">
+                  <div className="mt-4 w-full space-y-2 bg-elevated p-4 text-left">
                     <div className="flex justify-between text-sm">
-                      <span className="text-clinch-text-tertiary">Total deposited</span>
+                      <span className="text-text-tertiary">Total deposited</span>
                       <span>{formatUSDC(totalAmount)} USDC</span>
                     </div>
-                    <div className="flex justify-between text-sm text-clinch-danger">
+                    <div className="flex justify-between text-sm text-dispute">
                       <span>Platform fee ({(d.platformFee / 100).toFixed(1)}%)</span>
                       <span>- {formatUSDC(totalAmount * d.platformFee / 10000)} USDC</span>
                     </div>
-                    <div className="flex justify-between text-sm font-medium text-clinch-success">
+                    <div className="flex justify-between text-sm font-medium text-active">
                       <span>Winner received</span>
                       <span>{formatUSDC(totalAmount * (1 - d.platformFee / 10000))} USDC</span>
                     </div>
@@ -1195,10 +1271,10 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
               {/* ── SCENARIO 7: cancelled ── */}
               {d.status === 'cancelled' && (
                 <div className="flex flex-col items-center text-center">
-                  <h4 className="text-h4 text-clinch-text-primary">
+                  <h4 className="text-h4 text-text-primary">
                     Deal cancelled
                   </h4>
-                  <p className="mt-2 text-sm text-clinch-text-secondary">
+                  <p className="mt-2 text-sm text-text-secondary">
                     All deposited funds have been returned.
                   </p>
                 </div>
@@ -1208,13 +1284,13 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
               {d.status === 'expired' && (
                 <div className="flex flex-col items-center text-center">
                   <div className="flex h-12 w-12 items-center justify-center
-                    rounded-full bg-clinch-bg-elevated">
-                    <Clock className="h-6 w-6 text-clinch-text-tertiary" />
+                    rounded-full bg-elevated">
+                    <Clock className="h-6 w-6 text-text-tertiary" />
                   </div>
-                  <h4 className="mt-3 text-h4 text-clinch-text-primary">
+                  <h4 className="mt-3 text-h4 text-text-primary">
                     Deal expired
                   </h4>
-                  <p className="mt-2 text-sm text-clinch-text-secondary">
+                  <p className="mt-2 text-sm text-text-secondary">
                     All deposited funds have been returned.
                   </p>
                 </div>
@@ -1222,13 +1298,13 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
 
               {/* ── mutual cancel (bottom of active panel) ── */}
               {canCancel && (
-                <div className="mt-6 border-t border-clinch-border-default pt-4">
+                <div className="mt-6 border-t border-border-subtle pt-4">
                   {hasCancelRequested ? (
-                    <div className="rounded-lg bg-clinch-bg-elevated px-3 py-2 text-center">
-                      <p className="text-xs text-clinch-text-secondary">
+                    <div className="bg-elevated px-3 py-2 text-center">
+                      <p className="text-xs text-text-secondary">
                         You have requested cancellation.
                       </p>
-                      <p className="text-xs text-clinch-text-tertiary">
+                      <p className="text-xs text-text-tertiary">
                         Waiting for the other party to confirm.
                       </p>
                     </div>
@@ -1238,13 +1314,13 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
                         variant="ghost"
                         onClick={handleRequestCancel}
                         disabled={isProcessing}
-                        className="w-full border border-clinch-border-default
-                          text-clinch-text-tertiary hover:text-clinch-danger
-                          hover:border-clinch-danger"
+                        className="w-full border border-border-subtle
+                          text-text-tertiary hover:text-dispute
+                          hover:border-dispute"
                       >
                         {isProcessing ? 'Processing...' : 'Request mutual cancel'}
                       </Button>
-                      <p className="mt-1 text-center text-xs text-clinch-text-tertiary">
+                      <p className="mt-1 text-center text-xs text-text-tertiary">
                         Both parties must request. All deposits will be returned.
                       </p>
                     </>
@@ -1255,20 +1331,25 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
 
             {/* expire deal card */}
             {canExpire && (
-              <div className="mt-4 rounded-lg border border-clinch-border-default
-                bg-clinch-bg-elevated p-4">
-                <p className="text-sm text-clinch-text-secondary">
+              <div className="mt-4 border border-border-subtle
+                bg-elevated p-4">
+                <p className="text-sm text-text-secondary">
                   This deal has passed its expiry date. Funds can be reclaimed.
                 </p>
                 <Button
                   variant="ghost"
                   onClick={handleExpireDeal}
                   disabled={isProcessing}
-                  className="mt-2 w-full border border-clinch-border-default
-                    text-clinch-text-secondary hover:text-clinch-text-primary"
+                  className="mt-2 w-full border border-border-subtle
+                    text-text-secondary hover:text-text-primary"
                 >
                   {isProcessing ? 'Processing…' : 'Trigger expiry and reclaim funds'}
                 </Button>
+              </div>
+            )}
+            {needsDeposit && (
+              <div className="mt-4">
+                <UnifiedBalanceCard />
               </div>
             )}
           </div>
@@ -1277,3 +1358,4 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
     </div>
   );
 }
+

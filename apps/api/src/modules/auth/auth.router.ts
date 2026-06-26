@@ -9,7 +9,22 @@ import {
 } from "./auth.service";
 import { successResponse, errorResponse } from "../../middleware/error.middleware";
 import { SiweMessage } from "siwe";
-import { config } from "../../config/env";
+import { trackAnalyticsEvent } from "../analytics/analytics.service";
+
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+
+function shortAddress(address: string): string {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function isLocalDevelopmentRequest(req: Request): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+
+  const hostname = req.hostname.toLowerCase();
+  return ["localhost", "127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(
+    hostname,
+  );
+}
 
 export async function getNonceHandler(
   req: Request,
@@ -24,13 +39,12 @@ export async function getNonceHandler(
       return;
     }
 
-    if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    if (!ADDRESS_RE.test(address)) {
       res.status(400).json(errorResponse("Invalid Ethereum address"));
       return;
     }
 
     const nonce = generateNonce(address);
-    console.log("[Auth] Nonce generated for", address, ":", nonce);
     res.json(successResponse({ nonce }));
   } catch (err) {
     next(err);
@@ -53,21 +67,11 @@ export async function verifyHandler(
     const siwe = new SiweMessage(message);
     const addressFromMessage = siwe.address.toLowerCase();
 
-    console.log(
-      "[Auth] SIWE verify - address:",
-      siwe.address,
-      "nonce:",
-      siwe.nonce,
-      "domain:",
-      siwe.domain,
-    );
-
     // Look up stored nonce using the address from the SIWE message
     const storedNonce = getNonce(addressFromMessage);
-    console.log("[Auth] Stored nonce for", addressFromMessage, ":", storedNonce);
 
     if (!storedNonce) {
-      console.error("[Auth] Nonce not found or expired for", addressFromMessage);
+      console.warn("[Auth] Nonce not found or expired for", shortAddress(addressFromMessage));
       res.status(401).json(errorResponse("Nonce not found or expired. Please request a new nonce."));
       return;
     }
@@ -82,34 +86,31 @@ export async function verifyHandler(
     });
 
     if (!success || !fields) {
-      console.error("[Auth] SIWE signature verification failed:", error);
+      console.warn("[Auth] SIWE signature verification failed for", shortAddress(addressFromMessage), error?.type);
       res.status(401).json(errorResponse("SIWE verification failed: " + error?.type));
       return;
     }
 
     // Validate nonce from message matches the one we issued
     if (fields.nonce !== storedNonce) {
-      console.error(
-        "[Auth] Nonce mismatch for",
-        addressFromMessage,
-        "- stored:",
-        storedNonce,
-        "| received:",
-        fields.nonce,
-      );
+      console.warn("[Auth] Nonce mismatch for", shortAddress(addressFromMessage));
       res.status(401).json(errorResponse("Invalid nonce"));
       return;
     }
 
     // Delete nonce after successful validation
     deleteNonce(addressFromMessage);
-    console.log("[Auth] Nonce validated and deleted for", addressFromMessage);
 
-    const user = await upsertUser(addressFromMessage);
-    console.log("[Auth] User upserted:", user.walletAddress);
+    const { user, created } = await upsertUser(addressFromMessage);
 
     const token = signJwt({ wallet: user.walletAddress });
-    console.log("[Auth] JWT signed for", user.walletAddress);
+    trackAnalyticsEvent({
+      type: created ? "USER_CONNECTED" : "USER_RETURNED",
+      wallet: user.walletAddress,
+      metadata: {
+        provider: "siwe",
+      },
+    });
 
     res.json(successResponse({
       token,
@@ -121,7 +122,7 @@ export async function verifyHandler(
       },
     }));
   } catch (err) {
-    console.error("[Auth] Verify handler error:", err);
+    console.warn("[Auth] Verify handler failed");
     next(err);
   }
 }
@@ -139,6 +140,11 @@ export async function dynamicAuthHandler(
       return;
     }
 
+    if (!ADDRESS_RE.test(address)) {
+      res.status(400).json(errorResponse('Invalid Ethereum address'));
+      return;
+    }
+
     // Verify the Dynamic JWT
     const payload = await verifyDynamicJWT(dynamicToken);
 
@@ -151,10 +157,17 @@ export async function dynamicAuthHandler(
     }
 
     // Create or update user in DB
-    const user = await upsertUser(address.toLowerCase());
+    const { user, created } = await upsertUser(address.toLowerCase());
 
     // Issue your own JWT (same format as existing SIWE flow)
     const token = signJwt({ wallet: user.walletAddress });
+    trackAnalyticsEvent({
+      type: created ? 'USER_CONNECTED' : 'USER_RETURNED',
+      wallet: user.walletAddress,
+      metadata: {
+        provider: 'dynamic',
+      },
+    });
 
     res.json(successResponse({
       token,
@@ -167,6 +180,55 @@ export async function dynamicAuthHandler(
     }));
   } catch (err: any) {
     res.status(401).json(errorResponse(err.message || 'Dynamic auth failed'));
+  }
+}
+
+export async function developmentSessionHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!isLocalDevelopmentRequest(req)) {
+      res.status(404).json(errorResponse("Route not found"));
+      return;
+    }
+
+    const { address } = req.body as { address?: string };
+
+    if (!address || typeof address !== "string") {
+      res.status(400).json(errorResponse("Address is required"));
+      return;
+    }
+
+    if (!ADDRESS_RE.test(address)) {
+      res.status(400).json(errorResponse("Invalid Ethereum address"));
+      return;
+    }
+
+    const { user, created } = await upsertUser(address.toLowerCase());
+    const token = signJwt({ wallet: user.walletAddress });
+    trackAnalyticsEvent({
+      type: created ? "USER_CONNECTED" : "USER_RETURNED",
+      wallet: user.walletAddress,
+      metadata: {
+        provider: "development",
+      },
+    });
+
+    res.json(successResponse({
+      token,
+      user: {
+        id: user.id,
+        walletAddress: user.walletAddress,
+        displayName: user.displayName,
+        email: user.email,
+        emailNotifications: user.emailNotifications,
+        createdAt: user.createdAt,
+      },
+    }));
+  } catch (err) {
+    next(err);
   }
 }
 

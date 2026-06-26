@@ -46,7 +46,8 @@ ADMIN_WALLET=0x...
 JWT_SECRET=your-super-secret-jwt-key
 RESEND_API_KEY=re_...
 RESEND_FROM_EMAIL=noreply@clinch.app
-FRONTEND_URL=http://localhost:3000
+APP_URL=http://localhost:3002
+FRONTEND_URL=http://localhost:3002
 PORT=4000
 ```
 

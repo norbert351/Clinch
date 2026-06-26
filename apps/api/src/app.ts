@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import { config } from "./config/env";
+import rateLimit from "express-rate-limit";
+import { corsOptions } from "./config/cors";
 import { globalErrorHandler } from "./middleware/error.middleware";
 import authRouter from "./modules/auth/auth.index";
 import usersRouter from "./modules/users/users.index";
@@ -8,47 +9,52 @@ import dealsRouter from "./modules/deals/deals.index";
 import disputesRouter from "./modules/disputes/disputes.index";
 import dashboardRouter from "./modules/dashboard/dashboard.index";
 import notificationsRouter from "./modules/notifications/notifications.index";
+import publicRouter from "./modules/public/public.index";
+import gatewayRouter from "./modules/gateway/gateway.index";
+import { circleWebhookHandler } from "./modules/gateway/gateway.router";
+import messagesRouter from "./modules/messages/messages.index";
+import analyticsRouter, { adminRouter } from "./modules/analytics/analytics.index";
+import adminDashboardRouter from "./modules/admin";
 
 const app = express();
 
-const allowedOrigins = (
-  process.env.ALLOWED_ORIGINS ||
-  "https://clinch-one.vercel.app,http://localhost:3000"
-)
-  .split(",")
-  .map((o) => o.trim());
+const globalApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === "/api/health",
+});
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (server-to-server, health checks, curl)
-      if (!origin) return callback(null, true);
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-      const normalizedOrigin = origin.replace(/\/$/, "");
-      const isAllowed = allowedOrigins.some((allowed) => {
-        const normalizedAllowed = allowed.replace(/\/$/, "");
-        return normalizedOrigin === normalizedAllowed;
-      });
+const circleWebhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-      if (isAllowed) {
-        return callback(null, true);
-      }
-
-      console.warn("[CORS] Blocked origin:", origin);
-      callback(new Error("Not allowed by CORS: " + origin));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    exposedHeaders: ["Authorization"],
-  }),
-);
+app.use(cors(corsOptions));
 
 // Handle preflight requests for all routes
-app.options("*", cors());
+app.options("*", cors(corsOptions));
+
+app.post(
+  "/api/webhooks/circle",
+  circleWebhookLimiter,
+  express.raw({ type: "application/json", limit: "1mb" }),
+  circleWebhookHandler,
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(globalApiLimiter);
 
 app.get("/api/health", (_req: Request, res: Response) => {
   res.json({
@@ -57,12 +63,18 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-app.use("/api/auth", authRouter);
+app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/deals", dealsRouter);
 app.use("/api/disputes", disputesRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/public", publicRouter);
+app.use("/api/gateway", gatewayRouter);
+app.use("/api/messages", messagesRouter);
+app.use("/api/analytics", analyticsRouter);
+app.use("/api/admin", adminDashboardRouter);
+app.use("/api/admin", adminRouter);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ success: false, error: "Route not found" });

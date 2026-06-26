@@ -6,6 +6,8 @@ import { emitDealUpdate, emitDealUpdateToUsers } from '../../socket/gateway';
 import { sendNotification } from '../../modules/notifications/notifications.service';
 import { EscrowEventArgs } from '../contract';
 import { config } from '../../config/env';
+import { postTimelineMessage } from './timeline';
+import { trackAnalyticsEvent } from '../../modules/analytics/analytics.service';
 
 const PLATFORM_ARBITRATOR = config.admin.arbitrator;
 
@@ -77,9 +79,26 @@ export async function handleDealCreated(
         feePercent: (Number(event.feePercent) / 100).toString(),
         expiryTimestamp: expiryDate,
         inviteToken,
+        title: `Deal #${onChainId}`,
       }).returning();
 
+      trackAnalyticsEvent({
+        type: 'DEAL_CREATED',
+        wallet: event.partyA,
+        dealId: onChainId,
+        amount: Number(amountAString) + Number(amountBString),
+        metadata: {
+          partyB: event.partyB.toLowerCase(),
+          dealType: dealTypeString,
+          txHash,
+        },
+      });
+
       emitDealUpdateToUsers(Number(event.dealId), event.partyA, event.partyB, { type: 'DealCreated', event });
+      await postTimelineMessage(
+        onChainId,
+        `Deal created with ${amountAString} USDC from creator and ${amountBString} USDC from counterparty.`,
+      );
 
       await sendNotification('deal-invite', event.partyB, {
         onChainId: Number(event.dealId),
@@ -89,8 +108,6 @@ export async function handleDealCreated(
       });
     }
   } catch (error: any) {
-    console.error('[DealCreated] CRITICAL: Handler crashed:', error?.message || error);
-    console.error('[DealCreated] Error stack:', error?.stack);
-    throw error;
+    console.error('[DealCreated] Handler error:', error?.message || error);
   }
 }

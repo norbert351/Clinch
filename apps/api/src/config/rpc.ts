@@ -24,8 +24,7 @@ const ARC_CHAIN = {
 
 let publicClientInstance: ReturnType<typeof createPublicClient> | null = null;
 let wsClientInstance: ReturnType<typeof createPublicClient> | null = null;
-let currentHttpRpc = HTTP_RPCS[0];
-let currentWsRpc = WS_RPCS[0];
+let wsDisconnectLogged = false;
 
 export function getPublicClient() {
   if (!publicClientInstance) {
@@ -39,56 +38,48 @@ export function getPublicClient() {
 }
 
 export function getWsClient() {
-  if (!wsClientInstance) {
-    console.log('[RPC] Initializing WS client...');
-    
+  if (wsClientInstance) return wsClientInstance;
+
+  try {
     const wsTransports = WS_RPCS.map((url) => {
       try {
-        console.log('[RPC] Trying WS:', url);
         return webSocket(url, { timeout: 15000 });
-      } catch (e) {
-        console.warn('[RPC] Failed to create WS transport for:', url);
+      } catch {
         return null;
       }
     }).filter(Boolean);
 
     const httpTransports = HTTP_RPCS.map((url) => {
       try {
-        console.log('[RPC] Adding HTTP fallback:', url);
         return http(url, { timeout: 15000 });
-      } catch (e) {
-        console.warn('[RPC] Failed to create HTTP transport for:', url);
+      } catch {
         return null;
       }
     }).filter(Boolean);
 
     if (wsTransports.length > 0) {
-      const allTransports = [...wsTransports, ...httpTransports];
       wsClientInstance = createPublicClient({
         chain: ARC_CHAIN,
-        transport: fallback(allTransports as any),
-      });
-      console.log('[RPC] Initialized WS+HTTP fallback client with', allTransports.length, 'endpoints');
-    } else if (httpTransports.length > 0) {
-      console.warn('[RPC] No WS transports available, using HTTP only');
-      wsClientInstance = createPublicClient({
-        chain: ARC_CHAIN,
-        transport: fallback(httpTransports as any),
+        transport: fallback([...wsTransports, ...httpTransports] as any),
       });
     } else {
-      console.warn('[RPC] No transports available, using default HTTP');
       wsClientInstance = getPublicClient();
     }
+  } catch {
+    if (!wsDisconnectLogged) {
+      console.log('[RPC] websocket unavailable, using HTTP only');
+      wsDisconnectLogged = true;
+    }
+    wsClientInstance = getPublicClient();
   }
+
   return wsClientInstance;
 }
 
-export function getCurrentRpc() {
-  return currentHttpRpc;
-}
-
-export function getCurrentWsRpc() {
-  return currentWsRpc;
+export function resetWsClient(): void {
+  if (wsClientInstance) {
+    wsClientInstance = null;
+  }
 }
 
 export const RPC_ERRORS = {

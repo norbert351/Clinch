@@ -29,6 +29,48 @@
       "when": 1776970000000,
       "tag": "0003_ancient_clinch_upgrade",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776970100000,
+      "tag": "0004_gateway_transfers",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776970200000,
+      "tag": "0005_ai_dispute_assistant",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779446970017,
+      "tag": "0007_demonic_skin",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779485135280,
+      "tag": "0008_noisy_speed",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779485200000,
+      "tag": "0009_repair_deal_ai_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779555200000,
+      "tag": "0010_analytics_admin",
+      "breakpoints": true
     }
   ]
 }

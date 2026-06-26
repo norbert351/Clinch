@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, bigint } from 'drizzle-orm/pg-core';
+import { bigint, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const disputes = pgTable('disputes', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -7,6 +7,11 @@ export const disputes = pgTable('disputes', {
   reasonText: text('reason_text'),
   ruling: text('ruling'),
   ruledByWallet: text('ruled_by_wallet'),
+  aiAnalysis: jsonb('ai_analysis'),
+  aiRecommendedOutcome: text('ai_recommended_outcome'),
+  aiConfidence: text('ai_confidence'),
+  aiCreatorScore: integer('ai_creator_score'),
+  aiCounterpartyScore: integer('ai_counterparty_score'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   ruledAt: timestamp('ruled_at'),
   resolvedAt: timestamp('resolved_at'),

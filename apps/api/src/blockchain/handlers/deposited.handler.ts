@@ -3,6 +3,8 @@ import { contractEvents, deposits, deals } from '../../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { emitDealUpdate, emitDealUpdateToUsers } from '../../socket/gateway';
 import { sendNotification } from '../../modules/notifications/notifications.service';
+import { postTimelineMessage } from './timeline';
+import { trackAnalyticsEvent } from '../../modules/analytics/analytics.service';
 
 export async function handleDeposited(
   event: {
@@ -84,8 +86,37 @@ export async function handleDeposited(
     const dealType = deal.dealType;
     const needsPartyBDeposit = dealType === 'MutualStake';
     const bothDeposited = partyADeposited && (!needsPartyBDeposit || partyBDeposited);
+    const partyLabel =
+      party === deal.partyA.toLowerCase()
+        ? 'Creator'
+        : party === deal.partyB.toLowerCase()
+          ? 'Counterparty'
+          : 'Participant';
+
+    await postTimelineMessage(onChainId, `${partyLabel} deposited ${amountUSDC} USDC.`);
+
+    trackAnalyticsEvent({
+      type: 'DEPOSIT_COMPLETED',
+      wallet: party,
+      dealId: onChainId,
+      amount: amountUSDC,
+      metadata: {
+        txHash,
+        partyLabel,
+      },
+    });
 
     if (bothDeposited) {
+      trackAnalyticsEvent({
+        type: 'DEAL_ACTIVATED',
+        wallet: deal.partyA,
+        dealId: onChainId,
+        amount: (Number(deal.amountA) || 0) + (Number(deal.amountB) || 0),
+        metadata: {
+          partyB: deal.partyB,
+          dealType,
+        },
+      });
       emitDealUpdateToUsers(onChainId, deal.partyA, deal.partyB, {
         type: 'BothDeposited',
         party,
@@ -99,6 +130,7 @@ export async function handleDeposited(
       await sendNotification('deal-accepted', deal.partyB, {
         onChainId,
       });
+      await postTimelineMessage(onChainId, 'Escrow is active after required deposits were recorded.');
       return;
     }
 
