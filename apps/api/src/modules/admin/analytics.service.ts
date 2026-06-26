@@ -1,9 +1,9 @@
-import { db, sql } from '../../config/db';
+import { db, sql as pgSql } from '../../config/db';
 import {
   users, deals, deposits, votes, disputes,
   messages, contractEvents,
 } from '../../db/schema';
-import { eq, gte, desc } from 'drizzle-orm';
+import { eq, gte, desc, sql } from 'drizzle-orm';
 
 function daysAgo(n: number): Date {
   const d = new Date();
@@ -45,7 +45,7 @@ export async function getAnalyticsDashboard() {
     .from(users)
     .where(gte(users.createdAt, day30));
 
-  const userGrowthRaw = await sql`
+  const userGrowthRaw = await pgSql`
     SELECT
       DATE(created_at) as date,
       COUNT(*)::int as count
@@ -76,20 +76,20 @@ export async function getAnalyticsDashboard() {
     .from(deals)
     .where(gte(deals.createdAt, day30));
 
-  const dealsByStatus = await sql`
+  const dealsByStatus = await pgSql`
     SELECT status, COUNT(*)::int as count
     FROM deals
     GROUP BY status
     ORDER BY count DESC
   `;
 
-  const dealsByType = await sql`
+  const dealsByType = await pgSql`
     SELECT deal_type, COUNT(*)::int as count
     FROM deals
     GROUP BY deal_type
   `;
 
-  const dealGrowthRaw = await sql`
+  const dealGrowthRaw = await pgSql`
     SELECT
       DATE(created_at) as date,
       COUNT(*)::int as count
@@ -101,18 +101,18 @@ export async function getAnalyticsDashboard() {
 
   // ── VOLUME & REVENUE ──
 
-  const volumeRaw = await sql`
+  const volumeRaw = await pgSql`
     SELECT COALESCE(SUM(amount::numeric), 0)::float as total
     FROM deposits
   `;
 
-  const volume30Raw = await sql`
+  const volume30Raw = await pgSql`
     SELECT COALESCE(SUM(amount::numeric), 0)::float as total
     FROM deposits
     WHERE deposited_at >= ${day30}
   `;
 
-  const lockedRaw = await sql`
+  const lockedRaw = await pgSql`
     SELECT
       COALESCE(SUM(dep.amount::numeric), 0)::float as locked
     FROM deposits dep
@@ -120,7 +120,7 @@ export async function getAnalyticsDashboard() {
     WHERE d.status IN ('Active', 'Disputed')
   `;
 
-  const feesRaw = await sql`
+  const feesRaw = await pgSql`
     SELECT
       COALESCE(
         SUM(
@@ -134,7 +134,7 @@ export async function getAnalyticsDashboard() {
     WHERE d.status = 'Resolved'
   `;
 
-  const feesMonthRaw = await sql`
+  const feesMonthRaw = await pgSql`
     SELECT
       COALESCE(
         SUM(
@@ -149,7 +149,7 @@ export async function getAnalyticsDashboard() {
       AND d.updated_at >= DATE_TRUNC('month', NOW())
   `;
 
-  const volumeChartRaw = await sql`
+  const volumeChartRaw = await pgSql`
     SELECT
       DATE(deposited_at) as date,
       COALESCE(SUM(amount::numeric), 0)::float as volume
@@ -173,7 +173,7 @@ export async function getAnalyticsDashboard() {
     .select({ count: sql<number>`count(*)::int` })
     .from(disputes);
 
-  const resolvedDisputesResult = await sql`
+  const resolvedDisputesResult = await pgSql`
     SELECT COUNT(*)::int as count
     FROM disputes
     WHERE ruling IS NOT NULL
@@ -183,7 +183,7 @@ export async function getAnalyticsDashboard() {
     .select({ count: sql<number>`count(*)::int` })
     .from(messages);
 
-  const avgLifetimeRaw = await sql`
+  const avgLifetimeRaw = await pgSql`
     SELECT
       COALESCE(
         AVG(
@@ -194,7 +194,7 @@ export async function getAnalyticsDashboard() {
     WHERE status = 'Resolved'
   `;
 
-  const activeDealsRaw = await sql`
+  const activeDealsRaw = await pgSql`
     SELECT
       m.on_chain_id,
       d.title,
