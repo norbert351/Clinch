@@ -212,6 +212,20 @@ export default function ArbitrationPage() {
             <p className="mt-3 max-w-2xl text-sm font-light leading-6 text-text-secondary md:text-base">
               Evidence timelines, lightweight discussion, AI summaries, settlement progress, and on-chain arbitrator rulings in one operational view.
             </p>
+            {myDisputes.length > 0 && (
+              <div className="mt-4 flex items-start gap-3 rounded-lg border border-rose-500/30 bg-rose-500/5 p-4">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                <div>
+                  <p className="font-sans text-[13px] font-semibold text-rose-300">
+                    {myDisputes.length} dispute{myDisputes.length > 1 ? 's' : ''} awaiting your ruling
+                  </p>
+                  <p className="mt-1 font-sans text-[12px] text-rose-400/80">
+                    These disputes need your arbitration. Each day without a ruling increases platform risk.
+                    Review the evidence timeline and AI analysis, then submit your decision.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           <Link href="/dashboard">
             <Button variant="ghost" className="btn-sharp h-10 border border-border-subtle bg-surface/70 text-text-primary hover:bg-elevated">
