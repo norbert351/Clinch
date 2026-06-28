@@ -367,9 +367,10 @@ export default function DashboardPage() {
   const [sort, setSort] = useState<'recent' | 'amount' | 'status'>('recent');
   const [showFundingModal, setShowFundingModal] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<number, number>>({});
-  const { address, hasSigned } = useWallet();
+  const { address, hasSigned, isConnected } = useWallet();
   const walletAddress = address?.toLowerCase();
   const canLoadWalletData = mounted && Boolean(walletAddress) && hasSigned;
+  const walletConnected = mounted && Boolean(walletAddress) && isConnected;
   const { data, isLoading, error, refetch } = useDeals(
     1,
     80,
@@ -737,6 +738,12 @@ export default function DashboardPage() {
               title="Failed to load deals"
               description="Refresh the page or retry the request."
               action={<Button onClick={() => refreshDeals()}>Retry</Button>}
+            />
+          ) : !canLoadWalletData && walletConnected ? (
+            <EmptyState
+              icon={ShieldCheck}
+              title="Reconnecting..."
+              description="Your wallet is connected. Restoring your session."
             />
           ) : !canLoadWalletData ? (
             <EmptyState
