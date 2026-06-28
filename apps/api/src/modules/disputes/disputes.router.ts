@@ -38,34 +38,38 @@ const { ExactEvmScheme } = require('@x402/evm/exact/server') as {
   ExactEvmScheme: new () => unknown;
 };
 
-const facilitatorClient = new HTTPFacilitatorClient({
-  url: config.x402.facilitatorUrl,
-});
-
-const x402Server = new x402ResourceServer(facilitatorClient)
-  .register(config.x402.network, new ExactEvmScheme());
-
 // Payment middleware for the AI analysis endpoint
 // Network: Arc Testnet (eip155:5042002)
 // Price: $0.001 USDC
 // payTo: platform wallet receives the payment
-const aiAnalysisPaymentMiddleware = paymentMiddleware(
-  {
-    'POST /:onChainId/ai-analysis': {
-      accepts: [
-        {
-          scheme: 'exact',
-          price: '$0.001',
-          network: config.x402.network,
-          payTo: config.x402.sellerAddress as `0x${string}`,
-        },
-      ],
-      description: 'Clinch AI Dispute Analysis - $0.001 USDC',
-      mimeType: 'application/json',
+// Skip middleware if x402 is disabled (for testing without payment)
+let aiAnalysisPaymentMiddleware = (_req: any, _res: any, next: any) => next();
+
+if (config.x402.enabled) {
+  const facilitatorClient = new HTTPFacilitatorClient({
+    url: config.x402.facilitatorUrl,
+  });
+  const x402Server = new x402ResourceServer(facilitatorClient)
+    .register(config.x402.network, new ExactEvmScheme());
+
+  aiAnalysisPaymentMiddleware = paymentMiddleware(
+    {
+      'POST /:onChainId/ai-analysis': {
+        accepts: [
+          {
+            scheme: 'exact',
+            price: '$0.001',
+            network: config.x402.network,
+            payTo: config.x402.sellerAddress as `0x${string}`,
+          },
+        ],
+        description: 'Clinch AI Dispute Analysis - $0.001 USDC',
+        mimeType: 'application/json',
+      },
     },
-  },
-  x402Server,
-);
+    x402Server,
+  );
+}
 
 const onChainIdSchema = z.coerce.number().int().positive();
 

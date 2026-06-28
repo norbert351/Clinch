@@ -22,7 +22,7 @@ const envSchema = z.object({
     .string()
     .regex(/^0x[a-fA-F0-9]{40}$/)
     .default('0xBd1e427b1177f82C4255eB24172895A2a17eD686'),
-  X402_FACILITATOR_URL: z.string().url().default('https://gateway-api-testnet.circle.com'),
+  X402_FACILITATOR_URL: z.string().url().default('https://x402.org/facilitator'),
   X402_NETWORK: z.string().regex(/^eip155:\d+$/).default('eip155:5042002'),
   X402_ENABLED: z.string().default('false'),
   CONTRACT_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
