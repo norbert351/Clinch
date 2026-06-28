@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   BarChart3,
+  Bot,
   Code2,
   Copy,
   LayoutDashboard,
@@ -24,6 +25,7 @@ interface SidebarProps {
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/agent', icon: Bot, label: 'Agent' },
   { href: '/deals/new', icon: Plus, label: 'New Deal' },
   {
     href: '/arbitration',
@@ -58,7 +60,7 @@ export function Sidebar({ showArbitration = false }: SidebarProps) {
     return true;
   });
   const mainItems = visibleItems.filter((item) =>
-    ['/dashboard', '/deals/new', '/arbitration'].includes(item.href),
+    ['/dashboard', '/agent', '/deals/new', '/arbitration'].includes(item.href),
   );
   const accountItems = visibleItems.filter((item) =>
     ['/developer', '/admin', '/profile'].includes(item.href),
