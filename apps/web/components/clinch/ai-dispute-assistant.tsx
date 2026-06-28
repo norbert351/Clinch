@@ -169,14 +169,14 @@ export function AIDisputeAssistant({
       if (lowerMessage.includes('insufficient') ||
           lowerMessage.includes('balance')) {
         toast(
-          'Insufficient USDC on Base Sepolia. Get testnet USDC at faucet.circle.com',
+          'Insufficient USDC on Arc Testnet. Get testnet USDC at faucet.circle.com',
           { duration: 10000 },
         );
       } else if (message.includes('USDC')) {
         toast.error(message, { duration: 8000 });
       } else if (lowerMessage.includes('payment')) {
         toast.error(
-          'Payment failed. Ensure you have USDC on Base Sepolia.',
+          'Payment failed. Ensure you have USDC on Arc Testnet.',
           { duration: 8000 },
         );
       } else if (lowerMessage.includes('rejected') ||
@@ -249,7 +249,7 @@ export function AIDisputeAssistant({
               )}
             </Button>
             <p className="mt-2 text-center font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
-              Powered by Circle Nanopayments · Base Sepolia
+              Powered by Circle Nanopayments · Arc Testnet
             </p>
           </div>
         </div>

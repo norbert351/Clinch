@@ -1350,7 +1350,19 @@ export async function generateDisputeAnalysis(
         where: eq(disputes.onChainId, onChainId),
       });
 
-      if (!dispute) return null;
+      if (!dispute) {
+        return {
+          analysis: 'This deal has not been disputed yet. No AI analysis is available until a dispute is raised.',
+          creatorPositionSummary: 'No dispute raised',
+          counterpartyPositionSummary: 'No dispute raised',
+          creatorScore: 5,
+          counterpartyScore: 5,
+          recommendedOutcome: 'Split' as DisputeRecommendation,
+          confidence: 'Low' as DisputeConfidence,
+          reasoning: 'A dispute must be raised before AI analysis can be generated.',
+          keyConsiderations: [],
+        };
+      }
 
       const cached = rowToDisputeAIAnalysis(dispute);
       if (cached?.analysis && cached.recommendedOutcome) {

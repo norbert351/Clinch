@@ -497,7 +497,7 @@ export async function generateDisputeAIAnalysis(
     if (status === 402) {
       console.error("[x402] Payment failed - 402 not resolved");
       throw new Error(
-        "Payment could not be processed. Ensure your wallet has USDC on Base Sepolia.",
+        "Payment could not be processed. Ensure your wallet has USDC on Arc Testnet.",
       );
     }
 
