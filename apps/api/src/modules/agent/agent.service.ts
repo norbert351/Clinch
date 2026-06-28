@@ -4,9 +4,7 @@ import { config } from '../../config/env';
 import { deals, disputes } from '../../db/schema';
 import type { AgentWalletConfig, AgentMetrics, AgentTransaction, AutoDiscoveryResult } from './agent.types';
 
-const CIRCLE_API_BASE = config.circle.environment === 'testnet'
-  ? 'https://api-testnet.circle.com'
-  : 'https://api.circle.com';
+const CIRCLE_API_BASE = 'https://api.circle.com';
 
 interface AgentState {
   wallet: AgentWalletConfig | null;
