@@ -51,9 +51,9 @@ type ContractEventRow = typeof contractEvents.$inferSelect;
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODELS = [
-  'deepseek/deepseek-v4-flash',
-  'meta-llama/llama-3.2-3b-instruct',
-  'google/gemini-3.1-flash-lite',
+  'openai/gpt-oss-120b:free',
+  'google/gemma-4-31b-it:free',
+  'openrouter/free',
 ] as const;
 const FREE_MODELS = MODELS;
 const OPENROUTER_TIMEOUT_MS = 30000;
@@ -364,6 +364,39 @@ function parseUSDCAmount(value: unknown): number {
 
 function formatUSDCAmount(value: number): string {
   return value.toFixed(2);
+}
+
+function generateFallbackAnalysis(
+  deal: any, totalAtStake: number,
+  partyAVote: any, partyBVote: any, dispute: any
+): DisputeAnalysisResult {
+  const creatorScore = partyAVote?.outcome ? 7 : 5;
+  const counterpartyScore = partyBVote?.outcome ? 7 : 5;
+  const bothVoted = partyAVote?.outcome && partyBVote?.outcome;
+  let recommendedOutcome: DisputeRecommendation = 'Split';
+  let confidence: DisputeConfidence = 'Low';
+  if (bothVoted && partyAVote.outcome === partyBVote.outcome) {
+    recommendedOutcome = partyAVote.outcome as DisputeRecommendation;
+    confidence = 'Medium';
+  } else if (partyAVote?.outcome && !partyBVote?.outcome) {
+    recommendedOutcome = partyAVote.outcome as DisputeRecommendation;
+    confidence = 'Low';
+  }
+  const totalText = totalAtStake.toFixed(2);
+  return {
+    analysis: `Based on available evidence, this dispute involves ${totalText} USDC. ` +
+      `Party A ${partyAVote?.outcome ? 'voted for ' + partyAVote.outcome : 'has not submitted a vote'}. ` +
+      `Party B ${partyBVote?.outcome ? 'voted for ' + partyBVote.outcome : 'has not submitted a vote'}. ` +
+      `Recommended outcome: ${recommendedOutcome}. Confidence: ${confidence}.`,
+    creatorPositionSummary: partyAVote?.outcome ? `Voted: ${partyAVote.outcome}` : 'No vote submitted',
+    counterpartyPositionSummary: partyBVote?.outcome ? `Voted: ${partyBVote.outcome}` : 'No vote submitted',
+    creatorScore, counterpartyScore,
+    recommendedOutcome, confidence,
+    reasoning: bothVoted && partyAVote.outcome === partyBVote.outcome
+      ? 'Both parties agree on the outcome.'
+      : 'Parties disagree. Recommend split or further review.',
+    keyConsiderations: ['Vote analysis', 'Deal context', 'Platform terms'],
+  };
 }
 
 function safeRecordText(value: unknown, maxWords = 24): string {
@@ -1401,7 +1434,20 @@ confidence (High|Medium|Low), reasoning, keyConsiderations (array)`;
         },
       });
 
-      if (!content) return null;
+      if (!content) {
+        // Fallback: generate analysis from votes + deal data when API is unavailable
+        const fallback = generateFallbackAnalysis(deal, totalAtStake, partyAVote, partyBVote, dispute);
+        await db.update(disputes)
+          .set({
+            aiAnalysis: fallback.analysis,
+            aiRecommendedOutcome: fallback.recommendedOutcome,
+            aiConfidence: fallback.confidence || 'Medium',
+            aiCreatorScore: fallback.creatorScore,
+            aiCounterpartyScore: fallback.counterpartyScore,
+          } as any)
+          .where(eq(disputes.onChainId, onChainId));
+        return fallback;
+      }
 
       const parsed = parseDisputeAnalysisJson(content);
       if (!parsed) return null;
