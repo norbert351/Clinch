@@ -7,6 +7,7 @@ import { config } from '../../config/env';
 import { generateSettlementSummary } from '../../modules/ai/ai.service';
 import { postTimelineMessage } from './timeline';
 import { trackAnalyticsEvent } from '../../modules/analytics/analytics.service';
+import { dispatchWebhooks } from '../../modules/developer/developer.service';
 
 const PLATFORM_FEE_BPS = config.fees.platformFee;
 const PLATFORM_WALLET = config.admin.wallet;
@@ -110,6 +111,7 @@ export async function handleResolved(
     winner: winnerOutcome,
   });
 
+  dispatchWebhooks('deal.resolved', { onChainId, winner: winnerOutcome, winnerPayout, platformFee: platformFeeNum }).catch(() => {});
   emitDealUpdateToUsers(onChainId, deal.partyA, deal.partyB, { 
     type: 'Resolved', 
     winner: winnerOutcome,

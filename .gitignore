@@ -17,3 +17,7 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+
+# developer platform
+developers.json
+recovery/

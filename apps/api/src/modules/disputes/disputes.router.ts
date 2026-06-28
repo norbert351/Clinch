@@ -10,6 +10,7 @@ import {
 } from '../ai/ai.service';
 import { getDealByOnChainId } from '../deals/deals.service';
 import { successResponse, errorResponse } from '../../middleware/error.middleware';
+import { config } from '../../config/env';
 
 type X402Middleware = (
   req: Request,
@@ -37,19 +38,15 @@ const { ExactEvmScheme } = require('@x402/evm/exact/server') as {
   ExactEvmScheme: new () => unknown;
 };
 
-const PLATFORM_WALLET =
-  (process.env.PLATFORM_ARBITRATOR ||
-    '0xdd4c983Cd57Ee7A6F8Ef0BbB8715B19bdF5C1b61') as `0x${string}`;
-
 const facilitatorClient = new HTTPFacilitatorClient({
-  url: 'https://x402.org/facilitator',
+  url: config.x402.facilitatorUrl,
 });
 
 const x402Server = new x402ResourceServer(facilitatorClient)
-  .register('eip155:84532', new ExactEvmScheme());
+  .register(config.x402.network, new ExactEvmScheme());
 
 // Payment middleware for the AI analysis endpoint
-// Network: Base Sepolia (eip155:84532)
+// Network: Arc Testnet (eip155:5042002)
 // Price: $0.001 USDC
 // payTo: platform wallet receives the payment
 const aiAnalysisPaymentMiddleware = paymentMiddleware(
@@ -59,8 +56,8 @@ const aiAnalysisPaymentMiddleware = paymentMiddleware(
         {
           scheme: 'exact',
           price: '$0.001',
-          network: 'eip155:84532',
-          payTo: PLATFORM_WALLET,
+          network: config.x402.network,
+          payTo: config.x402.sellerAddress as `0x${string}`,
         },
       ],
       description: 'Clinch AI Dispute Analysis - $0.001 USDC',

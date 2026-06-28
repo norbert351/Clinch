@@ -7,6 +7,7 @@ import { config } from '../../config/env';
 import { generateDisputeAnalysis, generateDisputeSummary } from '../../modules/ai/ai.service';
 import { postTimelineMessage } from './timeline';
 import { trackAnalyticsEvent } from '../../modules/analytics/analytics.service';
+import { dispatchWebhooks } from '../../modules/developer/developer.service';
 
 const PLATFORM_ARBITRATOR = config.admin.arbitrator;
 
@@ -86,6 +87,7 @@ export async function handleDisputed(
     });
   }
 
+  dispatchWebhooks('dispute.raised', { onChainId, raisedBy, arbitrator }).catch(() => {});
   emitDealUpdateToUsers(onChainId, deal.partyA, deal.partyB, { 
     type: 'Disputed', 
     raisedBy,

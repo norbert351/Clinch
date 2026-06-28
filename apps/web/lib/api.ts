@@ -472,7 +472,7 @@ export async function generateDisputeAIAnalysis(
             message: params.message,
           } as Parameters<WalletClient["signTypedData"]>[0]),
       },
-      networks: ["eip155:84532"],
+      networks: ["eip155:5042002"],
     });
 
     const x402Api = wrapAxiosWithPayment(api, client);

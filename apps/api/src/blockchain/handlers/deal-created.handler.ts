@@ -8,6 +8,7 @@ import { EscrowEventArgs } from '../contract';
 import { config } from '../../config/env';
 import { postTimelineMessage } from './timeline';
 import { trackAnalyticsEvent } from '../../modules/analytics/analytics.service';
+import { dispatchWebhooks } from '../../modules/developer/developer.service';
 
 const PLATFORM_ARBITRATOR = config.admin.arbitrator;
 
@@ -94,6 +95,7 @@ export async function handleDealCreated(
         },
       });
 
+      dispatchWebhooks('deal.created', { onChainId, partyA: event.partyA, partyB: event.partyB, amountA: amountAString, amountB: amountBString, dealType: dealTypeString }).catch(() => {});
       emitDealUpdateToUsers(Number(event.dealId), event.partyA, event.partyB, { type: 'DealCreated', event });
       await postTimelineMessage(
         onChainId,

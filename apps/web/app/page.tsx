@@ -47,6 +47,11 @@ function LandingNavbar() {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link href="/docs"
+            className="inline-flex items-center gap-1.5 border border-border-subtle px-3 py-1.5 font-sans text-xs font-medium text-text-secondary hover:text-cyan transition-colors"
+          >
+            Docs
+          </Link>
           <ThemeToggle />
           {mounted && isConnected && address ? (
             <Link

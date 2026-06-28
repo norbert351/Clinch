@@ -15,6 +15,9 @@ import { circleWebhookHandler } from "./modules/gateway/gateway.router";
 import messagesRouter from "./modules/messages/messages.index";
 import analyticsRouter, { adminRouter } from "./modules/analytics/analytics.index";
 import adminDashboardRouter from "./modules/admin";
+import devRouter from "./modules/developer/developer.router";
+import externalRouter from "./modules/developer/external.router";
+import agentRouter from "./modules/agent/agent.index";
 
 const app = express();
 
@@ -91,6 +94,9 @@ app.use("/api/messages", messagesRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/admin", adminDashboardRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/dev", devRouter);
+app.use("/api/external", externalRouter);
+app.use("/api/agent", agentRouter);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ success: false, error: "Route not found" });

@@ -33,6 +33,7 @@ import {
   GatewayFundingModal,
   StatCardSkeleton,
 } from '@/components/clinch';
+import { AgentWalletCard } from '@/components/agent/agent-wallet-card';
 import { useWallet } from '@/components/wallet-context';
 import { useDeals, useRefreshDeals } from '@/hooks/useDeals';
 import { useUnifiedBalance } from '@/hooks/useUnifiedBalance';
@@ -573,6 +574,10 @@ export default function DashboardPage() {
             />
           </>
         )}
+      </div>
+
+      <div className="mt-6">
+        <AgentWalletCard />
       </div>
 
       <div className="mt-6">
