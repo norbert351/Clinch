@@ -1,4 +1,4 @@
-import { eq, and, desc, lt, isNull } from 'drizzle-orm';
+import { eq, and, desc, lt, isNull, sql } from 'drizzle-orm';
 import { db } from '../../config/db';
 import { config } from '../../config/env';
 import { deals, disputes } from '../../db/schema';
@@ -124,7 +124,7 @@ export async function getAgentWalletBalance(): Promise<string> {
 
 export async function getAgentMetrics(): Promise<AgentMetrics> {
   const resolvedCount = await db
-    .select({ count: db.fn.count() })
+    .select({ count: sql<number>`count(*)::int` })
     .from(disputes)
     .where(and(
       eq(disputes.ruling, 'PartyAWins'),
@@ -138,10 +138,10 @@ export async function getAgentMetrics(): Promise<AgentMetrics> {
     .where(eq(deals.status, 'Resolved'))
     .limit(100);
 
-  const totalFees = feeDeals.reduce((sum: number, d: { fee: string }) => sum + (parseFloat(d.fee) || 0), 0);
+  const totalFees = feeDeals.reduce((sum: number, d: { fee: string | null }) => sum + (parseFloat(d.fee || '0') || 0), 0);
 
   const autoHandled = await db
-    .select({ count: db.fn.count() })
+    .select({ count: sql<number>`count(*)::int` })
     .from(disputes)
     .where(eq(disputes.ruledByWallet, 'clinch_agent'))
     .then((r: Array<{ count: number }>) => Number(r[0]?.count || 0));

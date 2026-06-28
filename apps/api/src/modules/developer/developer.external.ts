@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { successResponse, errorResponse } from "../../middleware/error.middleware";
-import { getDealByOnChainId, createDeal } from "../deals/deals.service";
+import { getDealByOnChainId } from "../deals/deals.service";
 import { getDisputeByOnChainId } from "../disputes/disputes.service";
 
 // Create an escrow deal via API
