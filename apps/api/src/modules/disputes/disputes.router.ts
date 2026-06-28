@@ -12,63 +12,45 @@ import { getDealByOnChainId } from '../deals/deals.service';
 import { successResponse, errorResponse } from '../../middleware/error.middleware';
 import { config } from '../../config/env';
 
-type X402Middleware = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => void | Promise<void>;
-
-type X402ResourceServer = {
-  register: (network: string, server: unknown) => X402ResourceServer;
-};
-
-const { paymentMiddleware, x402ResourceServer } = require('@x402/express') as {
-  paymentMiddleware: (
-    routes: Record<string, unknown>,
-    server: X402ResourceServer,
-  ) => X402Middleware;
-  x402ResourceServer: new (facilitatorClient: unknown) => X402ResourceServer;
-};
-
-const { HTTPFacilitatorClient } = require('@x402/core/server') as {
-  HTTPFacilitatorClient: new (config?: { url?: string }) => unknown;
-};
-
-const { ExactEvmScheme } = require('@x402/evm/exact/server') as {
-  ExactEvmScheme: new () => unknown;
-};
-
-// Payment middleware for the AI analysis endpoint
-// Network: Arc Testnet (eip155:5042002)
-// Price: $0.001 USDC
-// payTo: platform wallet receives the payment
-// Skip middleware if x402 is disabled (for testing without payment)
+// x402 middleware - lazily initialized to avoid auto-connect at import time
 let aiAnalysisPaymentMiddleware = (_req: any, _res: any, next: any) => next();
 
+// When x402 is enabled, dynamically import and initialize the payment middleware
 if (config.x402.enabled) {
-  const facilitatorClient = new HTTPFacilitatorClient({
-    url: config.x402.facilitatorUrl,
-  });
-  const x402Server = new x402ResourceServer(facilitatorClient)
-    .register(config.x402.network, new ExactEvmScheme());
+  (async () => {
+    try {
+      const x402Express = await import('@x402/express');
+      const x402Core = await import('@x402/core/server');
+      const x402Evm = await import('@x402/evm/exact/server');
+      
+      const HTTPFacilitatorClient = x402Core.HTTPFacilitatorClient;
+      const ExactEvmScheme = x402Evm.ExactEvmScheme;
 
-  aiAnalysisPaymentMiddleware = paymentMiddleware(
-    {
-      'POST /:onChainId/ai-analysis': {
-        accepts: [
-          {
-            scheme: 'exact',
-            price: '$0.001',
-            network: config.x402.network,
-            payTo: config.x402.sellerAddress as `0x${string}`,
+      const facilitatorClient = new HTTPFacilitatorClient({
+        url: config.x402.facilitatorUrl,
+      });
+      const x402Server = new x402Express.x402ResourceServer(facilitatorClient)
+        .register(config.x402.network, new ExactEvmScheme());
+
+      aiAnalysisPaymentMiddleware = x402Express.paymentMiddleware(
+        {
+          'POST /:onChainId/ai-analysis': {
+            accepts: [{
+              scheme: 'exact',
+              price: '$0.001',
+              network: config.x402.network,
+              payTo: config.x402.sellerAddress as `0x${string}`,
+            }],
+            description: 'Clinch AI Dispute Analysis - $0.001 USDC',
+            mimeType: 'application/json',
           },
-        ],
-        description: 'Clinch AI Dispute Analysis - $0.001 USDC',
-        mimeType: 'application/json',
-      },
-    },
-    x402Server,
-  );
+        },
+        x402Server,
+      );
+    } catch (err) {
+      console.warn('[x402] Failed to initialize payment middleware:', err);
+    }
+  })();
 }
 
 const onChainIdSchema = z.coerce.number().int().positive();
