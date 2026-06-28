@@ -19,8 +19,11 @@ let aiAnalysisPaymentMiddleware = (_req: any, _res: any, next: any) => next();
 if (config.x402.enabled) {
   (async () => {
     try {
+      // @ts-expect-error - types not needed for dynamic import
       const x402Express = await import('@x402/express');
+      // @ts-expect-error - types not needed for dynamic import
       const x402Core = await import('@x402/core/server');
+      // @ts-expect-error - types not needed for dynamic import
       const x402Evm = await import('@x402/evm/exact/server');
       
       const HTTPFacilitatorClient = x402Core.HTTPFacilitatorClient;
