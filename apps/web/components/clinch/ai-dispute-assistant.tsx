@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useWalletClient } from 'wagmi';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -88,6 +89,7 @@ export function AIDisputeAssistant({
   const [isCoolingDown, setIsCoolingDown] = useState(false);
   const [expanded, setExpanded] = useState(Boolean(initialAnalysis));
   const cooldownRef = useRef(false);
+  const { data: walletClient } = useWalletClient();
 
   function startFailureCooldown() {
     cooldownRef.current = true;
@@ -126,27 +128,60 @@ export function AIDisputeAssistant({
   async function handleGenerate() {
     if (isLoading || cooldownRef.current) return;
 
+    if (!walletClient) {
+      toast.error('Wallet not connected. Please connect your wallet.');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const result = await generateDisputeAIAnalysis(onChainId);
+      console.log(
+        '[AI Dispute] Initiating x402 payment for deal:',
+        onChainId,
+      );
+
+      toast('Processing payment...', {
+        id: 'x402-payment',
+        duration: 30000,
+      });
+
+      const result = await generateDisputeAIAnalysis(
+        onChainId,
+        walletClient,
+      );
+
+      toast.dismiss('x402-payment');
+
       if (result) {
         setAnalysis(result);
         setExpanded(true);
-        toast.success('AI analysis complete');
+        toast.success('AI analysis complete · $0.001 USDC paid');
       } else {
-        toast.error('Analysis failed. Check your connection.');
+        toast.error('Analysis unavailable. Try again.');
         startFailureCooldown();
       }
     } catch (err: any) {
-      const status = err?.response?.status;
-      if (status === 404) {
-        toast.error('AI analysis endpoint not found. Ensure the backend is running.');
-      } else if (status === 500) {
-        toast.error('AI service unavailable. Try again later.');
-      } else if (status === 402) {
-        toast.error('Payment required. This costs $0.001 USDC.');
-      } else if (status === 401) {
-        toast.error('Session expired. Reconnect your wallet.');
+      toast.dismiss('x402-payment');
+
+      const message = err?.message || '';
+      const lowerMessage = message.toLowerCase();
+
+      if (lowerMessage.includes('insufficient') ||
+          lowerMessage.includes('balance')) {
+        toast(
+          'Insufficient USDC on Base Sepolia. Get testnet USDC at faucet.circle.com',
+          { duration: 10000 },
+        );
+      } else if (message.includes('USDC')) {
+        toast.error(message, { duration: 8000 });
+      } else if (lowerMessage.includes('payment')) {
+        toast.error(
+          'Payment failed. Ensure you have USDC on Base Sepolia.',
+          { duration: 8000 },
+        );
+      } else if (lowerMessage.includes('rejected') ||
+                 lowerMessage.includes('denied')) {
+        toast('Payment cancelled.');
       } else {
         toast.error('Analysis failed. Try again.');
       }
@@ -197,21 +232,25 @@ export function AIDisputeAssistant({
           <div className="text-right">
             <Button
               onClick={handleGenerate}
-              disabled={isLoading || isCoolingDown}
+              disabled={isLoading || isCoolingDown || !walletClient}
               className="bg-[--accent-usdc] font-sans font-semibold text-white hover:bg-[--accent-usdc]"
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                  Analyzing...
+                  Processing payment...
                 </>
+              ) : isCoolingDown ? (
+                'Please wait...'
+              ) : !walletClient ? (
+                'Connect wallet to analyze'
               ) : (
                 'Analyze · $0.001 USDC'
               )}
             </Button>
-            <div className="mt-2 font-mono text-[10px] text-[--text-tertiary]">
-              Powered by Circle Nanopayments · gasless
-            </div>
+            <p className="mt-2 text-center font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
+              Powered by Circle Nanopayments · Base Sepolia
+            </p>
           </div>
         </div>
       </div>

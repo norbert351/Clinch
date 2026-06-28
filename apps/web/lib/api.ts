@@ -1,6 +1,10 @@
 import axios from "axios";
-import { BatchEvmScheme } from "@circle-fin/x402-batching/client";
-import type { Address, Hex, WalletClient } from "viem";
+import {
+  wrapAxiosWithPayment,
+  x402Client,
+} from "@x402/axios";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import type { WalletClient } from "viem";
 import type {
   ApiResponse,
   Deal,
@@ -441,147 +445,81 @@ export async function getDisputeAIAnalysis(
   }
 }
 
-type X402PaymentRequirements = {
-  scheme: string;
-  network: string;
-  asset: string;
-  amount: string;
-  payTo: string;
-  maxTimeoutSeconds: number;
-  extra?: Record<string, unknown>;
-};
-type X402PaymentRequired = {
-  x402Version?: number;
-  resource?: {
-    url: string;
-    description: string;
-    mimeType: string;
-  };
-  accepts?: X402PaymentRequirements[];
-};
-
-let disputeAIAnalysisWalletClient: WalletClient | undefined;
-
-export function setDisputeAIAnalysisWalletClient(
-  walletClient: WalletClient | undefined,
-): void {
-  disputeAIAnalysisWalletClient = walletClient;
-}
-
-function getAuthHeaders(): Headers {
-  const headers = new Headers({
-    "Content-Type": "application/json",
-  });
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("clinch_token");
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-  }
-  return headers;
-}
-
-function decodeBase64Json<T>(value: string): T {
-  return JSON.parse(globalThis.atob(value)) as T;
-}
-
-function encodeBase64Json(value: unknown): string {
-  return globalThis.btoa(JSON.stringify(value));
-}
-
-async function getWalletClientAddress(walletClient: WalletClient): Promise<Address> {
-  const account = walletClient.account;
-  if (typeof account === "string") {
-    return account as Address;
-  }
-  if (account?.address) {
-    return account.address as Address;
-  }
-
-  const [address] = await walletClient.getAddresses();
-  if (!address) {
-    throw new Error("Wallet client has no selected account");
-  }
-  return address as Address;
-}
-
-function isGatewayBatchingOption(
-  option: X402PaymentRequirements,
-): boolean {
-  return (
-    option.network === "eip155:5042002" &&
-    option.extra?.name === "GatewayWalletBatched" &&
-    option.extra?.version === "1" &&
-    typeof option.extra?.verifyingContract === "string"
-  );
-}
-
-async function createPaymentSignatureHeader(
-  walletClient: WalletClient,
-  paymentRequired: X402PaymentRequired,
-): Promise<string> {
-  const batchingOption = paymentRequired.accepts?.find(isGatewayBatchingOption);
-  if (!batchingOption) {
-    throw new Error("No Arc Testnet Gateway batching option available");
-  }
-
-  const address = await getWalletClientAddress(walletClient);
-  const scheme = new BatchEvmScheme({
-    address,
-    signTypedData: async (params) =>
-      walletClient.signTypedData({
-        account: address,
-        domain: params.domain,
-        types: params.types,
-        primaryType: params.primaryType,
-        message: params.message,
-      } as Parameters<WalletClient["signTypedData"]>[0]) as Promise<Hex>,
-  });
-  const paymentPayload = await scheme.createPaymentPayload(
-    paymentRequired.x402Version ?? 2,
-    batchingOption,
-  );
-
-  return encodeBase64Json({
-    ...paymentPayload,
-    resource: paymentRequired.resource,
-    accepted: batchingOption,
-  });
-}
-
-async function parseDisputeAIAnalysisResponse(
-  response: Response,
-): Promise<DisputeAIAnalysis | null> {
-  if (response.status === 401 && typeof window !== "undefined") {
-    localStorage.removeItem("clinch_token");
-  }
-  if (!response.ok) {
-    return null;
-  }
-
-  const body = (await response.json()) as ApiResponse<DisputeAIAnalysis | null>;
-  return body.data || null;
-}
-
 export async function generateDisputeAIAnalysis(
   onChainId: number,
+  walletClient?: WalletClient,
 ): Promise<DisputeAIAnalysis | null> {
   try {
-    const response = await api.post(
+    if (!walletClient) {
+      throw new Error("Wallet not connected. Please connect your wallet.");
+    }
+
+    const address = walletClient.account?.address;
+    if (!address) {
+      throw new Error("Wallet client has no selected account");
+    }
+
+    const client = new x402Client();
+    registerExactEvmScheme(client, {
+      signer: {
+        address,
+        signTypedData: async (params) =>
+          walletClient.signTypedData({
+            account: walletClient.account,
+            domain: params.domain,
+            types: params.types,
+            primaryType: params.primaryType,
+            message: params.message,
+          } as Parameters<WalletClient["signTypedData"]>[0]),
+      },
+      networks: ["eip155:84532"],
+    });
+
+    const x402Api = wrapAxiosWithPayment(api, client);
+
+    console.log(
+      "[x402] Making payment-enabled request for deal:",
+      onChainId,
+    );
+
+    const response = await x402Api.post<ApiResponse<DisputeAIAnalysis>>(
       `/api/disputes/${onChainId}/ai-analysis`,
     );
+
+    console.log("[x402] Payment completed and analysis received");
+
     return response.data?.data || null;
   } catch (err: any) {
     const status = err?.response?.status;
+    const message = err?.message || "";
+    const lowerMessage = message.toLowerCase();
+
     if (status === 402) {
-      console.log("[x402] Payment required for AI analysis");
+      console.error("[x402] Payment failed - 402 not resolved");
+      throw new Error(
+        "Payment could not be processed. Ensure your wallet has USDC on Base Sepolia.",
+      );
+    }
+
+    if (status === 500) {
+      console.error("[x402] AI service error:", err?.response?.data);
+      return null;
+    }
+
+    if (lowerMessage.includes("insufficient") ||
+        lowerMessage.includes("balance") ||
+        lowerMessage.includes("rejected") ||
+        lowerMessage.includes("denied") ||
+        lowerMessage.includes("payment") ||
+        lowerMessage.includes("usdc")) {
+      console.error("[x402] Payment error:", message);
       throw err;
     }
-    if (status === 401) {
-      console.warn("[AI] Auth required for AI analysis");
-      throw err;
-    }
-    console.error("[AI] generateDisputeAIAnalysis failed:", err?.message);
+
+    console.error(
+      "[x402] generateDisputeAIAnalysis error:",
+      message,
+    );
     return null;
   }
 }

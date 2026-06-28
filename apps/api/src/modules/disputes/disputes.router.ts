@@ -10,56 +10,71 @@ import {
 } from '../ai/ai.service';
 import { getDealByOnChainId } from '../deals/deals.service';
 import { successResponse, errorResponse } from '../../middleware/error.middleware';
-import { config } from '../../config/env';
 
-type GatewayMiddlewareFunction = (
+type X402Middleware = (
   req: Request,
   res: Response,
   next: NextFunction
 ) => void | Promise<void>;
 
-type CreateGatewayMiddleware = (config: {
-  sellerAddress: string;
-  facilitatorUrl?: string;
-  networks?: string | string[];
-  description?: string;
-}) => {
-  require: (price: string) => GatewayMiddlewareFunction;
+type X402ResourceServer = {
+  register: (network: string, server: unknown) => X402ResourceServer;
 };
 
-const onChainIdSchema = z.coerce.number().int().positive();
-const X402_PAYMENT_HEADERS = 'PAYMENT-REQUIRED, PAYMENT-RESPONSE';
-const { createGatewayMiddleware } = require('@circle-fin/x402-batching/server') as {
-  createGatewayMiddleware: CreateGatewayMiddleware;
+const { paymentMiddleware, x402ResourceServer } = require('@x402/express') as {
+  paymentMiddleware: (
+    routes: Record<string, unknown>,
+    server: X402ResourceServer,
+  ) => X402Middleware;
+  x402ResourceServer: new (facilitatorClient: unknown) => X402ResourceServer;
 };
-const gateway = createGatewayMiddleware({
-  sellerAddress: config.x402.sellerAddress,
-  facilitatorUrl: config.x402.facilitatorUrl,
-  networks: [config.x402.network],
-  description: 'Clinch AI dispute analysis',
+
+const { HTTPFacilitatorClient } = require('@x402/core/server') as {
+  HTTPFacilitatorClient: new (config?: { url?: string }) => unknown;
+};
+
+const { ExactEvmScheme } = require('@x402/evm/exact/server') as {
+  ExactEvmScheme: new () => unknown;
+};
+
+const PLATFORM_WALLET =
+  (process.env.PLATFORM_ARBITRATOR ||
+    '0xdd4c983Cd57Ee7A6F8Ef0BbB8715B19bdF5C1b61') as `0x${string}`;
+
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: 'https://x402.org/facilitator',
 });
-const requireDisputeAIAnalysisPayment = gateway.require('$0.001');
+
+const x402Server = new x402ResourceServer(facilitatorClient)
+  .register('eip155:84532', new ExactEvmScheme());
+
+// Payment middleware for the AI analysis endpoint
+// Network: Base Sepolia (eip155:84532)
+// Price: $0.001 USDC
+// payTo: platform wallet receives the payment
+const aiAnalysisPaymentMiddleware = paymentMiddleware(
+  {
+    'POST /:onChainId/ai-analysis': {
+      accepts: [
+        {
+          scheme: 'exact',
+          price: '$0.001',
+          network: 'eip155:84532',
+          payTo: PLATFORM_WALLET,
+        },
+      ],
+      description: 'Clinch AI Dispute Analysis - $0.001 USDC',
+      mimeType: 'application/json',
+    },
+  },
+  x402Server,
+);
+
+const onChainIdSchema = z.coerce.number().int().positive();
 
 function parseOnChainId(value: unknown): number | null {
   const parsed = onChainIdSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
-}
-
-function optionalX402(): GatewayMiddlewareFunction {
-  if (config.x402.enabled) {
-    return requireDisputeAIAnalysisPayment;
-  }
-  return (_req: Request, _res: Response, next: NextFunction) => next();
-}
-
-function exposeX402Headers(req: Request, res: Response, next: NextFunction): void {
-  const existing = res.getHeader('Access-Control-Expose-Headers');
-  const values = Array.isArray(existing) ? existing.join(', ') : existing?.toString() || '';
-  res.setHeader(
-    'Access-Control-Expose-Headers',
-    values ? `${values}, ${X402_PAYMENT_HEADERS}` : X402_PAYMENT_HEADERS
-  );
-  next();
 }
 
 export async function getPendingDisputesHandler(
@@ -176,12 +191,18 @@ async function handleGenerateDisputeAIAnalysis(
       return;
     }
 
-    console.log('[POST /disputes/:id/ai-analysis] wallet:', req.wallet);
+    console.log(
+      '[POST /disputes/:id/ai-analysis]',
+      'x402 payment verified - generating analysis for:',
+      onChainIdNum,
+    );
 
     const analysis = await generateDisputeAnalysis(onChainIdNum);
 
     if (!analysis) {
-      res.status(500).json(errorResponse('AI analysis failed or no dispute found'));
+      res.status(500).json(
+        errorResponse('AI analysis failed - check OPENROUTER_API_KEY')
+      );
       return;
     }
 
@@ -200,8 +221,7 @@ async function handleGenerateDisputeAIAnalysis(
 }
 
 export const generateDisputeAIAnalysisHandler = [
-  exposeX402Headers,
-  optionalX402(),
+  aiAnalysisPaymentMiddleware,
   handleGenerateDisputeAIAnalysis,
 ];
 

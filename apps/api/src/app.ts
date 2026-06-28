@@ -40,10 +40,26 @@ const circleWebhookLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.use(cors(corsOptions));
+const x402CorsOptions = {
+  ...corsOptions,
+  allowedHeaders: Array.from(new Set([
+    ...(corsOptions.allowedHeaders as string[]),
+    "PAYMENT-SIGNATURE",
+    "X-PAYMENT",
+    "X-API-Key",
+  ])),
+  exposedHeaders: Array.from(new Set([
+    ...(corsOptions.exposedHeaders as string[]),
+    "PAYMENT-REQUIRED",
+    "PAYMENT-RESPONSE",
+    "X-PAYMENT-RESPONSE",
+  ])),
+};
+
+app.use(cors(x402CorsOptions));
 
 // Handle preflight requests for all routes
-app.options("*", cors(corsOptions));
+app.options("*", cors(x402CorsOptions));
 
 app.post(
   "/api/webhooks/circle",
