@@ -20,6 +20,7 @@ import externalRouter from "./modules/developer/external.router";
 import agentRouter from "./modules/agent/agent.index";
 
 const app = express();
+app.set('trust proxy', 1);
 
 const globalApiLimiter = rateLimit({
   windowMs: 60 * 1000,
