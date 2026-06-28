@@ -2,7 +2,7 @@
  * Clinch Agent Scheduler
  *
  * Manual cron script that runs agent auto-discovery tasks.
- * Add to crontab: */15 * * * * cd /path/to/clinch && npx tsx src/modules/agent/agent.scheduler.ts
+ * Add to crontab: every 15min cd /path/to/clinch && npx tsx src/modules/agent/agent.scheduler.ts
  *
  * This script:
  * 1. Finds stale deals (awaiting deposit > 48h, disputed > 24h without ruling)
