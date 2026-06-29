@@ -144,20 +144,30 @@ export function Sidebar({ showArbitration = false }: SidebarProps) {
             </button>
           </div>
         )}
-        <button
-          onClick={async () => {
-            try {
-              await disconnect();
-            } catch (err) {
-              console.error('[Sidebar] Disconnect failed:', err);
-            }
-            router.push('/');
-          }}
-          className="flex items-center gap-2 font-sans text-[12px] text-[var(--text-tertiary)] transition-colors cursor-pointer bg-transparent border-none p-0 hover:text-[var(--status-dispute)]"
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          Disconnect
-        </button>
+        {address ? (
+          <button
+            onClick={async () => {
+              try {
+                await disconnect();
+              } catch (err) {
+                console.error('[Sidebar] Disconnect failed:', err);
+              }
+              router.push('/');
+            }}
+            className="flex items-center gap-2 font-sans text-[12px] text-[var(--text-tertiary)] transition-colors cursor-pointer bg-transparent border-none p-0 hover:text-[var(--status-dispute)]"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Disconnect
+          </button>
+        ) : (
+          <button
+            onClick={() => connect()}
+            className="flex items-center gap-2 font-sans text-[12px] text-[var(--accent-cyan)] transition-colors cursor-pointer bg-transparent border-none p-0 hover:text-[var(--accent-cyan)]/80"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Connect wallet
+          </button>
+        )}
       </div>
     </aside>
   );
