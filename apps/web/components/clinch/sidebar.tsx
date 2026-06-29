@@ -46,7 +46,7 @@ const navItems = [
 export function Sidebar({ showArbitration = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { address, disconnect, hasSigned } = useWallet();
+  const { address, disconnect, hasSigned, connect } = useWallet();
   const [mounted, setMounted] = useState(false);
   const { data: isAdmin = false } = useIsAdmin(mounted && !!address && hasSigned);
 
