@@ -364,6 +364,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setIsSigning(false);
     setIsAuthLoading(false);
+
+    // Clear wagmi persisted state to prevent auto-reconnect
+    try {
+      if (typeof window !== 'undefined') {
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('wagmi.')) {
+            localStorage.removeItem(key);
+          }
+        });
+      }
+    } catch (err) {
+      console.error('[wallet disconnect] Failed to clear wagmi storage:', err);
+    }
   }, [address, chainId, disconnectWallet, handleLogOut]);
 
   const signMessage = useCallback(() => {
