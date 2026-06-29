@@ -10,7 +10,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import { useAccount, useDisconnect, useWalletClient } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useWalletClient } from "wagmi";
 import {
   useDynamicContext,
   useIsLoggedIn,
@@ -58,6 +58,7 @@ function isTokenValid(token: string | null): boolean {
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { address, isConnected, chainId, connector, status } = useAccount();
   const { disconnectAsync: disconnectWallet } = useDisconnect();
+  const { connectors, connect: connectWagmi } = useConnect();
   const walletClientQueryEnabled = Boolean(
     address &&
       connector &&
@@ -324,20 +325,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [isLoggedIn, address, isLocalConnectOnly]);
 
   const connect = useCallback(() => {
-    if (!sdkHasLoaded) return;
-    if (isDev) {
-      console.log("[wallet connect]", {
-        address,
-        chainId,
-        sdkHasLoaded,
-        apiUrl: API_URL,
-      });
+    if (sdkHasLoaded) {
+      waitRef.current = false;
+      setIsSigning(false);
+      setIsAuthLoading(false);
+      setShowAuthFlow(true);
+      return;
     }
-    waitRef.current = false;
-    setIsSigning(false);
-    setIsAuthLoading(false);
-    setShowAuthFlow(true);
-  }, [address, chainId, sdkHasLoaded, setShowAuthFlow]);
+    // Fallback: use wagmi's useConnect directly when Dynamic SDK isn't ready
+    console.log("[wallet connect] Dynamic SDK not loaded, trying wagmi fallback");
+    const connector = connectors[0];
+    if (connector) {
+      connectWagmi({ connector });
+    }
+  }, [address, chainId, sdkHasLoaded, setShowAuthFlow, connectors, connectWagmi]);
 
   const disconnect = useCallback(async () => {
     sessionRequestRef.current += 1;
