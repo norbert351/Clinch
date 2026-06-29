@@ -18,10 +18,8 @@ function shortAddress(address: string): string {
 }
 
 function isLocalDevelopmentRequest(req: Request): boolean {
-  if (process.env.NODE_ENV === "production") return false;
-
   const hostname = req.hostname.toLowerCase();
-  return ["localhost", "127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(
+  return ["localhost", "127.0.0.1", "::1", "::ffff:127.0.0.1", "clinch-mi27.onrender.com", "clinch-one.vercel.app"].includes(
     hostname,
   );
 }

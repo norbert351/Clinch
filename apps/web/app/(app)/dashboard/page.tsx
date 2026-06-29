@@ -370,7 +370,7 @@ export default function DashboardPage() {
   const { address, hasSigned, isConnected } = useWallet();
   const walletAddress = address?.toLowerCase();
   const canLoadWalletData = mounted && Boolean(walletAddress) && hasSigned;
-  const walletConnected = mounted && Boolean(walletAddress) && isConnected;
+  const walletConnected = mounted && Boolean(walletAddress) && Boolean(address);
   const { data, isLoading, error, refetch } = useDeals(
     1,
     80,
