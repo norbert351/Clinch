@@ -37,8 +37,8 @@ export async function resolveDisputeHandler(
       return;
     }
 
-    if (deal.status !== 'Disputed') {
-      res.status(400).json(errorResponse('Deal is not in Disputed status'));
+    if (deal.status !== 'Disputed' && deal.status !== 'Expired') {
+      res.status(400).json(errorResponse('Deal must be in Disputed or Expired status to resolve'));
       return;
     }
 

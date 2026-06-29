@@ -182,7 +182,27 @@ export default function ArbitrationPage() {
       if (msg.includes('not arbitrator') || msg.includes('not authorized')) {
         toast.error('You are not the arbitrator for this agreement');
       } else {
-        toast.error('Failed to resolve dispute');
+        // Try off-chain resolution via API (handles expired deals)
+        try {
+          const token = getToken();
+          const res = await fetch(API_URL + '/api/deals/resolve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+            body: JSON.stringify({ onChainId, outcome: selectedOutcome }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            toast.success('Dispute resolved off-chain (deal expired).');
+            setExpandedDeal(null);
+            setSelectedOutcome(null);
+            queryClient.invalidateQueries({ queryKey: ['disputes', 'pending'] });
+            queryClient.invalidateQueries({ queryKey: ['deals'] });
+          } else {
+            toast.error(data.error || 'Failed to resolve');
+          }
+        } catch (apiErr) {
+          toast.error('Failed to resolve dispute');
+        }
       }
     } finally {
       setIsProcessing(false);
