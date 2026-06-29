@@ -34,16 +34,17 @@ export async function getOrCreateAgentWallet(): Promise<AgentWalletConfig> {
   // Try to find existing wallet by wallet set
   if (config.circle.walletSetId) {
     try {
-      const walletsResponse = await client.getWallets({
+      const walletsResponse = await client.getWalletsWithBalances({
+        blockchain: 'ARC-TESTNET' as any,
         walletSetId: config.circle.walletSetId,
-        blockchains: ['ARC-TESTNET'],
+        pageSize: 1,
       });
       const existing = walletsResponse.data?.wallets?.[0];
       if (existing) {
         state.wallet = {
           walletId: existing.id,
           walletAddress: existing.address,
-          balance: parseUsdc(existing.balances?.[0]?.amount),
+          balance: parseUsdc((existing as any).tokenBalances?.[0]?.amount),
           entitySecret: config.circle.entitySecret || '',
           walletSetId: config.circle.walletSetId,
         };
@@ -73,7 +74,7 @@ export async function getOrCreateAgentWallet(): Promise<AgentWalletConfig> {
     state.wallet = {
       walletId: wallet.id,
       walletAddress: wallet.address,
-      balance: parseUsdc(wallet.balances?.[0]?.amount),
+      balance: '0',
       entitySecret: config.circle.entitySecret || '',
       walletSetId: config.circle.walletSetId,
     };
@@ -90,10 +91,10 @@ export async function getAgentWalletBalance(): Promise<string> {
   try {
     const wallet = await getOrCreateAgentWallet();
     const client = getSdkClient();
-    const info = await client.getWalletBalance({
-      walletId: wallet.walletId,
+    const info = await client.getWalletTokenBalance({
+      id: wallet.walletId,
     });
-    const usdcBalance = info.data?.balances?.find((b: any) => b.token === 'USDC');
+    const usdcBalance = info.data?.tokenBalances?.find((b: any) => b.token === 'USDC');
     return parseUsdc(usdcBalance?.amount);
   } catch (err) {
     console.warn('[Clinch Agent] Failed to fetch wallet balance:', err);
@@ -154,7 +155,7 @@ export async function findStaleDeals(): Promise<AutoDiscoveryResult[]> {
 
   for (const d of staleActiveDeals) results.push({
     dealId: Number(d.onChainId),
-    action: 'Notify parties',
+    action: 'notify' as const,
     reason: 'Deal has been active >48h without resolution',
   });
 
@@ -172,7 +173,7 @@ export async function findStaleDeals(): Promise<AutoDiscoveryResult[]> {
 
   for (const d of staleDisputedDeals) results.push({
     dealId: Number(d.onChainId),
-    action: 'Generate AI analysis',
+    action: 'analyze' as const,
     reason: 'Dispute open >24h without AI analysis',
   });
 
