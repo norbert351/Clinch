@@ -545,7 +545,7 @@ function buildSettlementEvidenceRecord(input: {
   const { deal, dispute, voteRows, depositRows } = input;
   const deposits = getDepositBreakdown(deal, depositRows);
   const outcome = outcomeFromDealAndVotes(deal, dispute, voteRows);
-  const feePercent = parseUSDCAmount(deal.feePercent);
+  const feePercent = parseUSDCAmount(deal.feePercent) || 200;
   const feeAmount = parseUSDCAmount(deal.platformFee) || (deposits.total * feePercent) / 10000;
   const winnerPayout = parseUSDCAmount(deal.winnerPayout) || Math.max(deposits.total - feeAmount, 0);
 
@@ -695,7 +695,7 @@ function buildFallbackSettlementSummary(input: {
   const { deal, dispute, voteRows, depositRows } = input;
   const deposits = getDepositBreakdown(deal, depositRows);
   const outcome = outcomeFromDealAndVotes(deal, dispute, voteRows);
-  const feePercent = parseUSDCAmount(deal.feePercent);
+  const feePercent = parseUSDCAmount(deal.feePercent) || 200;
   const feeAmount = parseUSDCAmount(deal.platformFee) || (deposits.total * feePercent) / 10000;
   const winnerPayout = parseUSDCAmount(deal.winnerPayout) || Math.max(deposits.total - feeAmount, 0);
   const arbitrationText = arbitrationOccurred(deal, dispute) ? 'Arbitration was required before settlement.' : 'No arbitration was recorded before settlement.';
