@@ -3,8 +3,7 @@ import { db } from '../../config/db';
 import { config } from '../../config/env';
 import { deals, disputes } from '../../db/schema';
 import type { AgentWalletConfig, AgentMetrics, AgentTransaction, AutoDiscoveryResult } from './agent.types';
-
-const CIRCLE_API_BASE = 'https://api.circle.com';
+import { initiateDeveloperControlledWalletsClient } from '@circle-fin/developer-controlled-wallets';
 
 interface AgentState {
   wallet: AgentWalletConfig | null;
@@ -14,72 +13,44 @@ const state: AgentState = {
   wallet: null,
 };
 
-function buildAuthHeader(): Record<string, string> {
-  const h: Record<string, string> = {};
-  h['Content-Type'] = 'application/json';
-  const key = config.circle.apiKey || '';
-  h['Authorization'] = 'Bearer ' + key;
-  const es = config.circle.entitySecret || '';
-  if (es) h['X-Entity-Secret-Ciphertext'] = es;
-  return h;
-}
-
-function buildAuthHeaderGet(): Record<string, string> {
-  const h: Record<string, string> = {};
-  const key = config.circle.apiKey || '';
-  h['Authorization'] = 'Bearer ' + key;
-  const es = config.circle.entitySecret || '';
-  if (es) h['X-Entity-Secret-Ciphertext'] = es;
-  return h;
-}
-
-async function circleApiPost<T>(path: string, body: unknown): Promise<T> {
-  if (!config.circle.apiKey) {
-    throw new Error('CIRCLE_API_KEY is not configured');
-  }
-  const response = await fetch(CIRCLE_API_BASE + path, {
-    method: 'POST',
-    headers: buildAuthHeader(),
-    body: JSON.stringify(body),
+function getSdkClient() {
+  return initiateDeveloperControlledWalletsClient({
+    apiKey: ***
+    entitySecret: config.circle.entitySecret || '',
   });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error('Circle API ' + path + ' returned ' + response.status + ': ' + detail);
-  }
-  return (await response.json()) as T;
 }
 
-async function circleApiGet<T>(path: string): Promise<T> {
-  if (!config.circle.apiKey) {
-    throw new Error('CIRCLE_API_KEY is not configured');
-  }
-  const response = await fetch(CIRCLE_API_BASE + path, {
-    headers: buildAuthHeaderGet(),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error('Circle API ' + path + ' returned ' + response.status + ': ' + detail);
-  }
-  return (await response.json()) as T;
+function parseUsdc(raw: string | number | bigint | undefined | null): string {
+  if (!raw) return '0';
+  const num = typeof raw === 'string' ? parseFloat(raw) : Number(raw);
+  return isNaN(num) ? '0' : num.toFixed(2);
 }
 
 export async function getOrCreateAgentWallet(): Promise<AgentWalletConfig> {
   if (state.wallet) return state.wallet;
 
-  if (config.circle.developerWalletId && config.circle.entitySecret) {
+  const client = getSdkClient();
+
+  // Try to find existing wallet by wallet set
+  if (config.circle.walletSetId) {
     try {
-      const data = await circleApiGet<{
-        data: { walletId: string; address: string; balances?: Array<{ amount: string }> };
-      }>('/v1/wallets/' + config.circle.developerWalletId);
-      state.wallet = {
-        walletId: data.data.walletId,
-        walletAddress: data.data.address,
-        balance: data.data.balances?.[0]?.amount || '0',
-        entitySecret: config.circle.entitySecret,
-        walletSetId: config.circle.walletSetId || '',
-      };
-      return state.wallet;
-    } catch {
+      const walletsResponse = await client.getWallets({
+        walletSetId: config.circle.walletSetId,
+        blockchains: ['ARC-TESTNET'],
+      });
+      const existing = walletsResponse.data?.wallets?.[0];
+      if (existing) {
+        state.wallet = {
+          walletId: existing.id,
+          walletAddress: existing.address,
+          balance: parseUsdc(existing.balances?.[0]?.amount),
+          entitySecret: config.circle.entitySecret || '',
+          walletSetId: config.circle.walletSetId,
+        };
+        console.log('[Clinch Agent] Found existing wallet:', state.wallet.walletAddress);
+        return state.wallet;
+      }
+    } catch (err: any) {
       console.warn('[Clinch Agent] Could not fetch existing wallet, will create one');
     }
   }
@@ -88,36 +59,42 @@ export async function getOrCreateAgentWallet(): Promise<AgentWalletConfig> {
     throw new Error('CIRCLE_WALLET_SET_ID is required to create an agent wallet');
   }
 
-  const created = await circleApiPost<{
-    data: { walletId: string; address: string; blockchain: string };
-  }>('/v1/wallets', {
-    walletSetId: config.circle.walletSetId,
-    blockchains: ['ARC-TESTNET'],
-    count: 1,
-  });
+  // Create a new wallet
+  try {
+    const created = await client.createWallets({
+      walletSetId: config.circle.walletSetId,
+      blockchains: ['ARC-TESTNET'],
+      count: 1,
+    });
 
-  state.wallet = {
-    walletId: created.data.walletId,
-    walletAddress: created.data.address,
-    balance: '0',
-    entitySecret: config.circle.entitySecret || '',
-    walletSetId: config.circle.walletSetId,
-  };
+    const wallet = created.data?.wallets?.[0];
+    if (!wallet) throw new Error('No wallet returned from Circle');
 
-  console.log('[Clinch Agent] Agent wallet created:', state.wallet.walletAddress);
-  return state.wallet;
+    state.wallet = {
+      walletId: wallet.id,
+      walletAddress: wallet.address,
+      balance: parseUsdc(wallet.balances?.[0]?.amount),
+      entitySecret: config.circle.entitySecret || '',
+      walletSetId: config.circle.walletSetId,
+    };
+
+    console.log('[Clinch Agent] Agent wallet created:', state.wallet.walletAddress);
+    return state.wallet;
+  } catch (err: any) {
+    console.error('[Clinch Agent] Failed to create wallet:', err?.message || err);
+    throw err;
+  }
 }
 
 export async function getAgentWalletBalance(): Promise<string> {
   try {
     const wallet = await getOrCreateAgentWallet();
-    const info = await circleApiGet<{
-      data: { balances?: Array<{ amount: string; token: string }> };
-    }>('/v1/wallets/' + wallet.walletId + '/balances');
-    const usdcBalance = info.data.balances?.find(b => b.token === 'USDC');
-    const balance = usdcBalance?.amount || '0';
-    state.wallet = { ...wallet, balance };
-    return balance;
+    const client = getSdkClient();
+    const info = await client.getWalletBalance({
+      walletId: wallet.walletId,
+    });
+    const usdcBalance = info.data?.balances?.find((b: any) => b.token === 'USDC');
+    return parseUsdc(usdcBalance?.amount);
   } catch (err) {
     console.warn('[Clinch Agent] Failed to fetch wallet balance:', err);
     return '0';
@@ -159,87 +136,69 @@ export async function getAgentMetrics(): Promise<AgentMetrics> {
 }
 
 export async function findStaleDeals(): Promise<AutoDiscoveryResult[]> {
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
   const results: AutoDiscoveryResult[] = [];
-  const now = new Date();
 
-  const staleDepositDeals = await db
-    .select()
+  const staleActiveDeals = await db
+    .select({ onChainId: deals.onChainId })
     .from(deals)
-    .where(and(
-      eq(deals.status, 'AwaitingDeposit'),
-      lt(deals.updatedAt, new Date(now.getTime() - 48 * 60 * 60 * 1000)),
-    ))
-    .limit(10);
+    .where(
+      and(
+        eq(deals.status, 'Active'),
+        lt(deals.createdAt, fortyEightHoursAgo),
+      ),
+    )
+    .limit(20);
 
-  for (const deal of staleDepositDeals) {
-    results.push({
-      dealId: Number(deal.onChainId),
-      action: 'notify',
-      reason: 'Deal #' + deal.onChainId + ' has been awaiting deposit for > 48 hours',
-    });
-  }
+  for (const d of staleActiveDeals) results.push({
+    dealId: Number(d.onChainId),
+    action: 'Notify parties',
+    reason: 'Deal has been active >48h without resolution',
+  });
 
-  const staleDisputes = await db
-    .select()
+  const staleDisputedDeals = await db
+    .select({ onChainId: disputes.onChainId })
     .from(disputes)
-    .innerJoin(deals, eq(disputes.onChainId, deals.onChainId))
-    .where(and(
-      eq(deals.status, 'Disputed'),
-      isNull(disputes.ruling),
-      lt(disputes.createdAt, new Date(now.getTime() - 24 * 60 * 60 * 1000)),
-    ))
-    .limit(10);
+    .where(
+      and(
+        eq(disputes.status, 'Open'),
+        lt(disputes.createdAt, twentyFourHoursAgo),
+        isNull(disputes.aiRecommendedOutcome),
+      ),
+    )
+    .limit(20);
 
-  for (const row of staleDisputes) {
-    const d = row.disputes;
-    results.push({
-      dealId: Number(d.onChainId),
-      action: 'analyze',
-      reason: 'Dispute #' + d.onChainId + ' has been open for > 24 hours without a ruling',
-    });
-  }
+  for (const d of staleDisputedDeals) results.push({
+    dealId: Number(d.onChainId),
+    action: 'Generate AI analysis',
+    reason: 'Dispute open >24h without AI analysis',
+  });
 
   return results;
 }
 
 export async function generateAgentServiceManifest(): Promise<Record<string, unknown>> {
-  const wallet = await getOrCreateAgentWallet();
+  let agentAddress = '0x0000000000000000000000000000000000000000';
+  try {
+    const wallet = await getOrCreateAgentWallet();
+    agentAddress = wallet.walletAddress;
+  } catch { /* use fallback address */ }
+
   return {
     name: 'Clinch Dispute AI Agent',
-    description: 'AI-powered dispute resolution for USDC escrow deals on Arc.',
-    provider: {
-      name: 'Clinch',
-      website: 'https://clinch-one.vercel.app',
-    },
-    endpoints: [
-      {
-        method: 'POST',
-        path: '/api/agent/arbitrate',
-        contentType: 'application/json',
-        price: '0.001',
-        token: 'USDC',
-        network: 'eip155:5042002',
-        description: 'Submit deal context for AI dispute analysis.',
-        request: {
-          properties: {
-            dealId: { type: 'integer' },
-            dealContext: { type: 'string' },
-            partyAStatement: { type: 'string' },
-            partyBStatement: { type: 'string' },
-          },
-        },
-        response: {
-          properties: {
-            analysis: { type: 'string' },
-            recommendedOutcome: { type: 'string', enum: ['PartyAWins', 'PartyBWins', 'Split'] },
-            confidence: { type: 'string', enum: ['High', 'Medium', 'Low'] },
-          },
-        },
-      },
-    ],
-    wallet: {
-      address: wallet.walletAddress,
-      chain: 'ARC-TESTNET',
-    },
+    description: 'Autonomous AI escrow dispute resolution agent on Arc Network',
+    network: config.x402.network || 'eip155:5042002',
+    wallet: { address: agentAddress, chain: 'ARC-TESTNET' },
+    endpoints: [{
+      path: '/api/disputes/:id/ai-analysis',
+      method: 'POST',
+      price: '$0.001',
+      description: 'AI dispute analysis with recommended outcome',
+      authentication: 'x402',
+    }],
+    version: '1.0.0',
+    updatedAt: new Date().toISOString(),
   };
 }
