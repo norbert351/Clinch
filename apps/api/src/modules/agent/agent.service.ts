@@ -4,7 +4,7 @@ import { config } from '../../config/env';
 import { deals, disputes } from '../../db/schema';
 import type { AgentWalletConfig, AgentMetrics, AgentTransaction, AutoDiscoveryResult } from './agent.types';
 
-const AGENT_WALLET_ADDRESS = config.circle.developerWalletId?.toLowerCase() || '0x35251024a8407e8f5d79b97fe12160578177b559';
+const AGENT_WALLET_ADDRESS = '0x35251024a8407e8f5d79b97fe12160578177b559';
 
 interface AgentState {
   wallet: AgentWalletConfig | null;
