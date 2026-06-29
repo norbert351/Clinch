@@ -164,7 +164,7 @@ export async function findStaleDeals(): Promise<AutoDiscoveryResult[]> {
     .from(disputes)
     .where(
       and(
-        eq(disputes.status, 'Open'),
+        isNull(disputes.ruling),
         lt(disputes.createdAt, twentyFourHoursAgo),
         isNull(disputes.aiRecommendedOutcome),
       ),
