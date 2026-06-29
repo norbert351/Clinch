@@ -17,10 +17,11 @@ export async function getAgentWalletHandler(
 ): Promise<void> {
   try {
     const wallet = await getOrCreateAgentWallet();
+    const balance = await getAgentWalletBalance();
     res.json(successResponse({
       walletId: wallet.walletId,
       address: wallet.walletAddress,
-      balance: wallet.balance,
+      balance: balance,
     }));
   } catch (err) {
     next(err);
