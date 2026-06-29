@@ -256,6 +256,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
 
     if (!isLoggedIn || !address) {
+      // If wallet is connected via wagmi but Dynamic session is gone,
+      // try to establish a session directly via the backend
+      if (address && !isLoggedIn && !isLocalConnectOnly) {
+        console.log('[Wallet] Dynamic session expired, trying direct backend auth for:', address);
+        setIsSigning(true);
+        setIsAuthLoading(true);
+        void establishLocalSession();
+        return;
+      }
       waitRef.current = false;
       setIsSigning(false);
       setIsAuthLoading(false);
