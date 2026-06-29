@@ -19,6 +19,8 @@ function buildAuthHeader(): Record<string, string> {
   h['Content-Type'] = 'application/json';
   const key = config.circle.apiKey || '';
   h['Authorization'] = 'Bearer ' + key;
+  const es = config.circle.entitySecret || '';
+  if (es) h['X-Entity-Secret-Ciphertext'] = es;
   return h;
 }
 
@@ -26,6 +28,8 @@ function buildAuthHeaderGet(): Record<string, string> {
   const h: Record<string, string> = {};
   const key = config.circle.apiKey || '';
   h['Authorization'] = 'Bearer ' + key;
+  const es = config.circle.entitySecret || '';
+  if (es) h['X-Entity-Secret-Ciphertext'] = es;
   return h;
 }
 
