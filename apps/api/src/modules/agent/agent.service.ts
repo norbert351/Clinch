@@ -15,7 +15,7 @@ const state: AgentState = {
 
 function getSdkClient() {
   return initiateDeveloperControlledWalletsClient({
-    apiKey: ***
+    apiKey: config.circle.apiKey || '',
     entitySecret: config.circle.entitySecret || '',
   });
 }
