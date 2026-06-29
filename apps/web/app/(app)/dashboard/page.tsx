@@ -15,6 +15,8 @@ import {
   Search,
   ShieldCheck,
   Wallet,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { Button } from '@/components/ui/button';
@@ -356,6 +358,38 @@ function BalanceCard({
         </div>
       </div>
     </section>
+  );
+}
+
+function ReconnectingState() {
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 12000);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="flex flex-col items-center justify-center py-16">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+        <RefreshCw className="h-6 w-6 animate-spin text-[var(--accent-cyan)]" />
+      </div>
+      <h3 className="mb-2 font-sans text-[18px] font-semibold text-[var(--text-primary)]">
+        Reconnecting...
+      </h3>
+      <p className="mb-6 max-w-sm text-center font-sans text-[13px] text-[var(--text-secondary)]">
+        Your wallet is connected. Restoring your session.
+      </p>
+      {timedOut && (
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex items-center gap-2 text-[12px] text-amber-400">
+            <AlertCircle className="h-3.5 w-3.5" />
+            Taking longer than expected
+          </div>
+          <Button onClick={() => window.location.reload()} variant="outline" size="sm">
+            Refresh page
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
