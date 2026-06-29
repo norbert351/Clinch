@@ -3,7 +3,14 @@ import { db } from '../../config/db';
 import { config } from '../../config/env';
 import { deals, disputes } from '../../db/schema';
 import type { AgentWalletConfig, AgentMetrics, AgentTransaction, AutoDiscoveryResult } from './agent.types';
-import { initiateDeveloperControlledWalletsClient } from '@circle-fin/developer-controlled-wallets';
+
+// Use require to avoid TypeScript module resolution issues with Circle SDK
+// The SDK is installed in node_modules and works fine at runtime
+const sdk = require('@circle-fin/developer-controlled-wallets') as {
+  initiateDeveloperControlledWalletsClient: (opts: Record<string, string>) => any;
+};
+
+const { initiateDeveloperControlledWalletsClient } = sdk;
 
 interface AgentState {
   wallet: AgentWalletConfig | null;
