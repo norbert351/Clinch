@@ -187,7 +187,7 @@ export type EscrowEventArgs = {
 };
 
 export const DEAL_TYPES = ['MutualStake', 'OneSided'] as const;
-export const OUTCOMES = ['PartyAWins', 'PartyBWins', 'Split'] as const;
+export const OUTCOMES = ['None', 'PartyAWins', 'PartyBWins', 'Split'] as const;
 
 export const ESCROW_EVENT_NAMES = [
   'DealCreated',
