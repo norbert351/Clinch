@@ -271,7 +271,7 @@ export default function DealDetailPage({ params }: DealDetailPageProps) {
         hasVoted: counterpartyHasVoted,
       },
       arbitrator: d.arbitratorWallet,
-      platformFee: parseFloat(d.feePercent) || 0,
+      platformFee: parseFloat(d.feePercent) || 200,
       createdAt: new Date(d.createdAt),
       expiresAt: new Date(d.expiryTimestamp),
     };

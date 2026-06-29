@@ -116,6 +116,6 @@ export const config = {
     port: env.PORT,
   },
   fees: {
-    platformFee: 25,
+    platformFee: 200,
   },
 } as const;
