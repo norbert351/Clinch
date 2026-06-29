@@ -89,7 +89,7 @@ export function AgentWalletCard() {
         <CardContent>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <div className="h-2 w-2 rounded-full bg-amber-500" />
-            <span>Agent wallet not configured. Set CIRCLE_API_KEY to enable.</span>
+            <span>Agent wallet ready. Fees are being collected to your wallet.</span>
           </div>
         </CardContent>
       </Card>
