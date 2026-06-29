@@ -88,7 +88,7 @@ export default function AgentPage() {
                 )}
               </div>
               {wallet?.address && (
-                <a href={`https://explorer.arc.network/address/${wallet.address}`} target="_blank" rel="noopener noreferrer"
+                <a href={`https://testnet.arcscan.app/address/${wallet.address}`} target="_blank" rel="noopener noreferrer"
                   className="mt-3 inline-flex items-center gap-1 font-sans text-[12px] text-[var(--accent-cyan)] hover:underline">
                   View on Arc Explorer <ExternalLink className="h-3 w-3" />
                 </a>

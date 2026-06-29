@@ -268,7 +268,7 @@ export function Navbar({
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <a
-                    href={`https://explorer.arc.network/address/${address}`}
+                    href={`https://testnet.arcscan.app/address/${address}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex cursor-pointer items-center gap-2 text-clinch-text-secondary hover:text-clinch-text-primary"

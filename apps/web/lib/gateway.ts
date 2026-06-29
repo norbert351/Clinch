@@ -104,7 +104,7 @@ export const fallbackGatewayChains: GatewayChain[] = [
     chainName: SUPPORTED_CHAINS['ARC-TESTNET'].name,
     networkName: 'Arc',
     rpcUrl: 'https://arc-testnet.g.alchemy.com/v2/Gkx-iZaHDN3Didmlr1ep3',
-    blockExplorerUrl: 'https://explorer.arc.network',
+    blockExplorerUrl: 'https://testnet.arcscan.app',
     isPrimarySettlement: true,
     walletContractAddress: GATEWAY_WALLET_ADDRESS,
     minterContractAddress: GATEWAY_MINTER_ADDRESS,

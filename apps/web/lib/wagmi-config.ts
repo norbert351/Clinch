@@ -26,7 +26,7 @@ export const arcTestnet = defineChain({
   blockExplorers: {
     default: {
       name: 'Arc Explorer',
-      url: 'https://explorer.arc.network',
+      url: 'https://testnet.arcscan.app',
     },
   },
 });
@@ -96,7 +96,7 @@ export const wagmiConfig = createConfig({
 
 export const evmNetworks = [
   {
-    blockExplorerUrls: ['https://explorer.arc.network'],
+    blockExplorerUrls: ['https://testnet.arcscan.app'],
     chainId: ARC_CHAIN_ID,
     name: 'Arc Network Testnet',
     iconUrls: [],
