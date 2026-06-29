@@ -740,11 +740,7 @@ export default function DashboardPage() {
               action={<Button onClick={() => refreshDeals()}>Retry</Button>}
             />
           ) : !canLoadWalletData && walletConnected ? (
-            <EmptyState
-              icon={ShieldCheck}
-              title="Reconnecting..."
-              description="Your wallet is connected. Restoring your session."
-            />
+            <ReconnectingState />
           ) : !canLoadWalletData ? (
             <EmptyState
               icon={ShieldCheck}
