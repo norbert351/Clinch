@@ -74,7 +74,7 @@ export const supportedGatewayChains: GatewayChainConfig[] = [
     chainName: SUPPORTED_CHAINS['ARC-TESTNET'].name,
     networkName: 'Arc',
     rpcUrl: 'https://rpc.testnet.arc.network',
-    blockExplorerUrl: 'https://explorer.arc.network',
+    blockExplorerUrl: 'https://testnet.arcscan.app',
     isPrimarySettlement: true,
     walletContractAddress: GATEWAY_WALLET_ADDRESS,
     minterContractAddress: GATEWAY_MINTER_ADDRESS,

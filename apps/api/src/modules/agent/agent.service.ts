@@ -37,7 +37,27 @@ function parseUsdc(raw: string | number | bigint | undefined | null): string {
 }
 
 export async function getAgentWalletBalance(): Promise<string> {
-  return '0';
+  try {
+    const wallet = await getOrCreateAgentWallet();
+    if (!wallet.walletAddress || wallet.walletAddress === '0x0000000000000000000000000000000000000000') return '0';
+    const USDC = '0x3600000000000000000000000000000000000000';
+    const padded = wallet.walletAddress.slice(2).toLowerCase().padStart(64, '0');
+    const data = '0x70a08231' + padded;
+    const r = await fetch('https://rpc.testnet.arc.network', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: USDC, data }, 'latest'] }),
+    });
+    const j = await r.json() as { result?: string };
+    if (j.result && j.result !== '0x') {
+      const balance = Number(BigInt(j.result)) / 1e6;
+      console.log('[Clinch Agent] Wallet balance:', balance, 'USDC');
+      return balance.toFixed(2);
+    }
+    return '0';
+  } catch (err) {
+    console.warn('[Clinch Agent] Balance fetch failed:', err);
+    return '0';
+  }
 }
 
 export async function getAgentMetrics(): Promise<AgentMetrics> {
