@@ -1,4 +1,4 @@
-import { eq, and, desc, lt, isNull, sql } from 'drizzle-orm';
+import { eq, and, desc, lt, isNull, isNotNull, sql } from 'drizzle-orm';
 import { db } from '../../config/db';
 import { config } from '../../config/env';
 import { deals, disputes } from '../../db/schema';
@@ -64,14 +64,20 @@ export async function getAgentMetrics(): Promise<AgentMetrics> {
   const resolvedCount = await db.select({ count: sql<number>`count(*)::int` }).from(disputes)
     .where(and(eq(disputes.ruling, 'PartyAWins'), eq(disputes.ruledByWallet, 'clinch_agent')))
     .then(r => Number(r[0]?.count || 0));
-  const feeDeals = await db.select({ fee: deals.platformFee }).from(deals).where(eq(deals.status, 'Resolved')).limit(100);
-  const totalFees = feeDeals.reduce((s, d) => s + (parseFloat(d.fee || '0') || 0), 0);
   const autoHandled = await db.select({ count: sql<number>`count(*)::int` }).from(disputes)
     .where(eq(disputes.ruledByWallet, 'clinch_agent')).then(r => Number(r[0]?.count || 0));
+  const walletBalance = await getAgentWalletBalance();
+  const totalFees = parseFloat(walletBalance) || 0;
+  const aiCount = await db.select({ count: sql<number>`count(*)::int` }).from(disputes)
+    .where(isNotNull(disputes.aiAnalysis)).then(r => Number(r[0]?.count || 0));
+  const x402rev = (aiCount * 0.001).toFixed(2);
   return {
-    disputesResolved: resolvedCount, totalFeesEarned: totalFees.toFixed(2),
-    totalComputeSpent: (totalFees * 0.02).toFixed(2), dealsAutonomouslyHandled: autoHandled,
-    x402Revenue: '0.00', uptime: 'Active',
+    disputesResolved: resolvedCount,
+    totalFeesEarned: totalFees.toFixed(2),
+    totalComputeSpent: (totalFees * 0.02).toFixed(2),
+    dealsAutonomouslyHandled: autoHandled,
+    x402Revenue: x402rev,
+    uptime: 'Active',
   };
 }
 
